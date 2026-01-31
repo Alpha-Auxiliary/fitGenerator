@@ -14,7 +14,7 @@
 
 ## 截图
 
-![界面预览](https://picui.cn/delete/hmZ0zE/63ccdb465fec77353fc1be70a5c28878)
+![界面预览](example.png)
 
 ## 技术栈
 
