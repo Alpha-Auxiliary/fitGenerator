@@ -14,7 +14,7 @@
 
 ## 截图
 
-![界面预览](https://via.placeholder.com/800x600?text=FIT+Trajectory+Generator+Preview)
+![界面预览](https://picui.cn/delete/hmZ0zE/63ccdb465fec77353fc1be70a5c28878)
 
 ## 技术栈
 
@@ -40,8 +40,7 @@
 
 1. 克隆仓库
 ```bash
-git clone <repository-url>
-cd 校园跑
+git clone https://github.com/Alpha-Auxiliary/fitGenerator.git
 ```
 
 2. 安装依赖
