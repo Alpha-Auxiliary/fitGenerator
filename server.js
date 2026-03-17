@@ -3,25 +3,62 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { Encoder, Profile } from "@garmin/fitsdk";
+import open from "open";
+import fs from "fs";
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// 自动适配：在 pkg 环境下使用 process.cwd() 或 __dirname
+const isPkg = typeof process.pkg !== 'undefined';
+// 编译后的文件会在根目录，所以直接找同级的 public
+const __dirname = isPkg 
+    ? path.dirname(process.execPath) 
+    : path.dirname(fileURLToPath(import.meta.url));
+
+// 但在 pkg 内部镜像系统中，资源是相对于代码文件的
+// 强制使用相对路径，ncc 打包后 __dirname 会被处理
+const getPublicPath = () => {
+    // 尝试多个可能的路径，确保 100% 找到
+    const paths = [
+        path.join(process.cwd(), "public"),
+        path.join(path.dirname(fileURLToPath(import.meta.url)), "public"),
+        "C:\\snapshot\\public", // pkg 默认镜像路径
+        "/snapshot/public"
+    ];
+    
+    for (const p of paths) {
+        if (fs.existsSync(p)) return p;
+    }
+    return path.join(process.cwd(), "public"); // 兜底
+};
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
+
+//pkg 内部资源路径。__dirname 在被 ncc 编译后会指向虚拟系统的根。
+const publicPath = path.join(path.resolve(), "public");
 
 app.use(express.json({ limit: "5mb" }));
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(publicPath));
+
+// 兜底路由
+app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) return next();
+    const indexPath = path.join(publicPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        res.status(404).send("Index.html not found in " + publicPath);
+    }
+});
 
 const CONSTANTS = {
   FIT: {
-    SEMICIRCLE_FACTOR: 2147483648 / 180
+    SEMICIRCLE_FACTOR: 2147483648 / 180,
   },
   GEO: {
     EARTH_RADIUS_METERS: 6371000,
-    METERS_PER_DEG_LAT: 111320
+    METERS_PER_DEG_LAT: 111320,
   },
   HEART_RATE: {
     REST_MIN: 30,
@@ -29,14 +66,14 @@ const CONSTANTS = {
     REST_DEFAULT: 60,
     MAX_MIN: 100,
     MAX_MAX: 220,
-    MAX_DEFAULT: 180
+    MAX_DEFAULT: 180,
   },
   PACE: {
-    DEFAULT_SECONDS_PER_KM: 360
+    DEFAULT_SECONDS_PER_KM: 360,
   },
   LAP: {
     MIN_COUNT: 1,
-    DEFAULT_COUNT: 1
+    DEFAULT_COUNT: 1,
   },
   ROUTE: {
     MIN_POINTS: 2,
@@ -44,18 +81,18 @@ const CONSTANTS = {
     NOISE_RADIUS_MIN: 5,
     NOISE_RADIUS_MAX: 10,
     ELLIPSE_STEPS: 64,
-    HIGH_PRECISION_STEPS: 72
+    HIGH_PRECISION_STEPS: 72,
   },
   SPEED: {
     BASE_SPEED_FACTOR_MIN: 0.98,
-    BASE_SPEED_FACTOR_RANGE: 0.06
+    BASE_SPEED_FACTOR_RANGE: 0.06,
   },
   PLAYBACK: {
-    STEP_MS: 100
+    STEP_MS: 100,
   },
   PREVIEW: {
-    MIN_SAMPLES: 0
-  }
+    MIN_SAMPLES: 0,
+  },
 };
 
 function toSemicircles(deg) {
@@ -78,11 +115,10 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
 
 function offsetPointMeters(point, offsetLatMeters, offsetLonMeters) {
   const metersPerDegLon =
-    CONSTANTS.GEO.METERS_PER_DEG_LAT *
-    Math.cos((point.lat * Math.PI) / 180);
+    CONSTANTS.GEO.METERS_PER_DEG_LAT * Math.cos((point.lat * Math.PI) / 180);
   return {
     lat: point.lat + offsetLatMeters / CONSTANTS.GEO.METERS_PER_DEG_LAT,
-    lng: point.lng + offsetLonMeters / metersPerDegLon
+    lng: point.lng + offsetLonMeters / metersPerDegLon,
   };
 }
 
@@ -99,12 +135,21 @@ function buildClosedBasePoints(points) {
   return closed;
 }
 
-function computeSamples(allPoints, distances, totalDist, paceSecondsPerKm, hrRestVal, hrMaxVal) {
+function computeSamples(
+  allPoints,
+  distances,
+  totalDist,
+  paceSecondsPerKm,
+  hrRestVal,
+  hrMaxVal,
+) {
   const totalDistanceKm = totalDist / 1000;
   const targetDurationSec = totalDistanceKm * paceSecondsPerKm;
 
   const avgSpeedTarget = totalDist / targetDurationSec;
-  const baseSpeedFactor = CONSTANTS.SPEED.BASE_SPEED_FACTOR_MIN + Math.random() * CONSTANTS.SPEED.BASE_SPEED_FACTOR_RANGE;
+  const baseSpeedFactor =
+    CONSTANTS.SPEED.BASE_SPEED_FACTOR_MIN +
+    Math.random() * CONSTANTS.SPEED.BASE_SPEED_FACTOR_RANGE;
   const phase1 = Math.random() * Math.PI * 2;
   const phase2 = Math.random() * Math.PI * 2;
 
@@ -125,7 +170,7 @@ function computeSamples(allPoints, distances, totalDist, paceSecondsPerKm, hrRes
 
     const effort = Math.min(
       1,
-      Math.max(0, speedRaw / (avgSpeedTarget || 1e-6))
+      Math.max(0, speedRaw / (avgSpeedTarget || 1e-6)),
     );
 
     let intensityBase;
@@ -142,19 +187,21 @@ function computeSamples(allPoints, distances, totalDist, paceSecondsPerKm, hrRes
 
     const intensity = Math.min(
       1,
-      Math.max(0, 0.7 * intensityBase + 0.3 * effort)
+      Math.max(0, 0.7 * intensityBase + 0.3 * effort),
     );
 
     const hrTarget = hrRestVal + (hrMaxVal - hrRestVal) * intensity;
     currentHr += (hrTarget - currentHr) * 0.15;
     const hrJitter = (Math.random() - 0.5) * 3;
     const hrValue = Math.round(
-      Math.min(hrMaxVal, Math.max(hrRestVal, currentHr + hrJitter))
+      Math.min(hrMaxVal, Math.max(hrRestVal, currentHr + hrJitter)),
     );
     hrValues[i] = hrValue;
   }
 
-  const segDurationsRaw = new Array(Math.max(CONSTANTS.PREVIEW.MIN_SAMPLES, n - 1));
+  const segDurationsRaw = new Array(
+    Math.max(CONSTANTS.PREVIEW.MIN_SAMPLES, n - 1),
+  );
   let rawDuration = 0;
   for (let i = 1; i < n; i++) {
     const ds = distances[i] - distances[i - 1];
@@ -174,7 +221,7 @@ function computeSamples(allPoints, distances, totalDist, paceSecondsPerKm, hrRes
     speed: instSpeedRaw[0] / scale,
     heartRate: hrValues[0],
     lat: allPoints[0].lat,
-    lng: allPoints[0].lng
+    lng: allPoints[0].lng,
   });
 
   for (let i = 1; i < n; i++) {
@@ -186,7 +233,7 @@ function computeSamples(allPoints, distances, totalDist, paceSecondsPerKm, hrRes
       speed: instSpeedRaw[i] / scale,
       heartRate: hrValues[i],
       lat: allPoints[i].lat,
-      lng: allPoints[i].lng
+      lng: allPoints[i].lng,
     });
   }
 
@@ -204,8 +251,15 @@ function validateRequest(req, res) {
     return { valid: false, error: "缺少参数：需要 startTime" };
   }
 
-  if (!points || !Array.isArray(points) || points.length < CONSTANTS.ROUTE.MIN_POINTS) {
-    return { valid: false, error: `缺少参数：需要至少 ${CONSTANTS.ROUTE.MIN_POINTS} 个轨迹点 points` };
+  if (
+    !points ||
+    !Array.isArray(points) ||
+    points.length < CONSTANTS.ROUTE.MIN_POINTS
+  ) {
+    return {
+      valid: false,
+      error: `缺少参数：需要至少 ${CONSTANTS.ROUTE.MIN_POINTS} 个轨迹点 points`,
+    };
   }
 
   const startDate = new Date(startTime);
@@ -217,27 +271,28 @@ function validateRequest(req, res) {
 }
 
 function parseActivityParams(body) {
-  const paceSecondsPerKm = Number(body.paceSecondsPerKm) > 0 
-    ? Number(body.paceSecondsPerKm) 
-    : CONSTANTS.PACE.DEFAULT_SECONDS_PER_KM;
-  
-  const hrRestVal = Number.isFinite(Number(body.hrRest)) 
-    ? Number(body.hrRest) 
+  const paceSecondsPerKm =
+    Number(body.paceSecondsPerKm) > 0
+      ? Number(body.paceSecondsPerKm)
+      : CONSTANTS.PACE.DEFAULT_SECONDS_PER_KM;
+
+  const hrRestVal = Number.isFinite(Number(body.hrRest))
+    ? Number(body.hrRest)
     : CONSTANTS.HEART_RATE.REST_DEFAULT;
-  
-  const hrMaxVal = Number.isFinite(Number(body.hrMax)) 
-    ? Number(body.hrMax) 
+
+  const hrMaxVal = Number.isFinite(Number(body.hrMax))
+    ? Number(body.hrMax)
     : CONSTANTS.HEART_RATE.MAX_DEFAULT;
-  
+
   const lapsRaw = Number(body.lapCount);
-  const laps = Number.isFinite(lapsRaw) && lapsRaw > CONSTANTS.LAP.MIN_COUNT - 1
-    ? Math.floor(lapsRaw)
-    : CONSTANTS.LAP.DEFAULT_COUNT;
-  
+  const laps =
+    Number.isFinite(lapsRaw) && lapsRaw > CONSTANTS.LAP.MIN_COUNT - 1
+      ? Math.floor(lapsRaw)
+      : CONSTANTS.LAP.DEFAULT_COUNT;
+
   const variantRaw = Number(body.variantIndex);
-  const variant = Number.isFinite(variantRaw) && variantRaw > 0
-    ? Math.floor(variantRaw)
-    : 1;
+  const variant =
+    Number.isFinite(variantRaw) && variantRaw > 0 ? Math.floor(variantRaw) : 1;
 
   return { paceSecondsPerKm, hrRestVal, hrMaxVal, laps, variant };
 }
@@ -261,8 +316,10 @@ function computeRoutePointsWithNoise(basePoints, laps) {
   const usedLaps = laps > 0 ? laps : CONSTANTS.LAP.DEFAULT_COUNT;
 
   for (let lapIndex = 0; lapIndex < usedLaps; lapIndex++) {
-    const radiusMeters = CONSTANTS.ROUTE.NOISE_RADIUS_MIN + Math.random() * 
-      (CONSTANTS.ROUTE.NOISE_RADIUS_MAX - CONSTANTS.ROUTE.NOISE_RADIUS_MIN);
+    const radiusMeters =
+      CONSTANTS.ROUTE.NOISE_RADIUS_MIN +
+      Math.random() *
+        (CONSTANTS.ROUTE.NOISE_RADIUS_MAX - CONSTANTS.ROUTE.NOISE_RADIUS_MIN);
     const angle = Math.random() * Math.PI * 2;
     const offsetLatMeters = radiusMeters * Math.cos(angle);
     const offsetLonMeters = radiusMeters * Math.sin(angle);
@@ -288,7 +345,7 @@ function computeDistancesAndTotal(allPoints) {
       allPoints[i - 1].lat,
       allPoints[i - 1].lng,
       allPoints[i].lat,
-      allPoints[i].lng
+      allPoints[i].lng,
     );
     totalDist += d;
     distances.push(totalDist);
@@ -296,19 +353,26 @@ function computeDistancesAndTotal(allPoints) {
   return { distances, totalDist };
 }
 
-function buildFitFile(encoder, startDate, totalDist, totalDurationSec, samples, allPoints) {
+function buildFitFile(
+  encoder,
+  startDate,
+  totalDist,
+  totalDurationSec,
+  samples,
+  allPoints,
+) {
   encoder.onMesg(Profile.MesgNum.FILE_ID, {
     manufacturer: "development",
     product: 1,
     timeCreated: startDate,
-    type: "activity"
+    type: "activity",
   });
 
   encoder.onMesg(Profile.MesgNum.DEVICE_INFO, {
     timestamp: startDate,
     manufacturer: "development",
     product: 1,
-    serialNumber: 1
+    serialNumber: 1,
   });
 
   const avgSpeed = totalDist / totalDurationSec;
@@ -322,14 +386,14 @@ function buildFitFile(encoder, startDate, totalDist, totalDurationSec, samples, 
     totalDistance: totalDist,
     sport: "running",
     subSport: "generic",
-    avgSpeed
+    avgSpeed,
   });
 
   encoder.onMesg(Profile.MesgNum.ACTIVITY, {
     timestamp: sessionEnd,
     totalTimerTime: totalDurationSec,
     numSessions: 1,
-    type: "manual"
+    type: "manual",
   });
 
   for (let i = 0; i < samples.length; i++) {
@@ -342,7 +406,7 @@ function buildFitFile(encoder, startDate, totalDist, totalDurationSec, samples, 
       positionLong: toSemicircles(allPoints[i].lng),
       distance: s.distance,
       speed: s.speed,
-      heartRate: s.heartRate
+      heartRate: s.heartRate,
     });
   }
 
@@ -355,7 +419,9 @@ app.post("/api/preview", (req, res) => {
     if (!validation.valid) return;
 
     const { startDate } = validation;
-    const { paceSecondsPerKm, hrRestVal, hrMaxVal, laps } = parseActivityParams(req.body);
+    const { paceSecondsPerKm, hrRestVal, hrMaxVal, laps } = parseActivityParams(
+      req.body,
+    );
 
     const basePoints = buildClosedBasePoints(req.body.points);
     const allPoints = computeRoutePoints(basePoints, laps);
@@ -372,13 +438,13 @@ app.post("/api/preview", (req, res) => {
       totalDist,
       paceSecondsPerKm,
       hrRestVal,
-      hrMaxVal
+      hrMaxVal,
     );
 
     return res.json({
       totalDistanceMeters: totalDist,
       totalDurationSec,
-      samples
+      samples,
     });
   } catch (e) {
     console.error("Preview generation error:", e);
@@ -392,7 +458,8 @@ app.post("/api/generate-fit", (req, res) => {
     if (!validation.valid) return;
 
     const { startDate } = validation;
-    const { paceSecondsPerKm, hrRestVal, hrMaxVal, laps, variant } = parseActivityParams(req.body);
+    const { paceSecondsPerKm, hrRestVal, hrMaxVal, laps, variant } =
+      parseActivityParams(req.body);
 
     const basePoints = buildClosedBasePoints(req.body.points);
     const allPoints = computeRoutePointsWithNoise(basePoints, laps);
@@ -409,11 +476,18 @@ app.post("/api/generate-fit", (req, res) => {
       totalDist,
       paceSecondsPerKm,
       hrRestVal,
-      hrMaxVal
+      hrMaxVal,
     );
 
     const encoder = new Encoder();
-    buildFitFile(encoder, startDate, totalDist, totalDurationSec, samples, allPoints);
+    buildFitFile(
+      encoder,
+      startDate,
+      totalDist,
+      totalDurationSec,
+      samples,
+      allPoints,
+    );
 
     const uint8Array = encoder.close();
     const buffer = Buffer.from(uint8Array);
@@ -421,7 +495,7 @@ app.post("/api/generate-fit", (req, res) => {
     res.setHeader("Content-Type", "application/vnd.ant.fit");
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=run_${variant}.fit`
+      `attachment; filename=run_${variant}.fit`,
     );
     return res.send(buffer);
   } catch (e) {
@@ -430,6 +504,16 @@ app.post("/api/generate-fit", (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server listening on http://localhost:${PORT}`);
+app.listen(PORT, async () => {
+  const url = `http://localhost:${PORT}`;
+  console.log(`Server listening on ${url}`);
+  
+  if (process.pkg) {
+    try {
+      await open(url);
+      console.log("Browser opened automatically.");
+    } catch (err) {
+      console.error("Failed to open browser:", err);
+    }
+  }
 });

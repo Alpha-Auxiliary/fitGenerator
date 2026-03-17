@@ -14,7 +14,7 @@
 
 ## 截图
 
-![界面预览](https://via.placeholder.com/800x600?text=FIT+Trajectory+Generator+Preview)
+![界面预览](example.png)
 
 ## 技术栈
 

@@ -6,3 +6,6 @@ coverage
 dist
 .vscode
 .idea
+.history
+server_bundled.cjs
+build/

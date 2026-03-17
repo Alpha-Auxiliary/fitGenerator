@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIT 轨迹生成工具 - 校园跑</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <header class="sidebar-header">
+        <h1 class="sidebar-title">
+          <span class="title-icon">🏃</span>
+          FIT 轨迹生成工具
+        </h1>
+        <p class="sidebar-subtitle">校园跑步路线规划</p>
+      </header>
+
+      <div class="sidebar-content">
+        <section class="section">
+          <h2 class="section-title">地点搜索</h2>
+          <div class="search-wrapper">
+            <div class="search-input-group">
+              <input id="searchInput" type="text" placeholder="搜索地点（如：清华大学、天安门）" class="search-input" />
+              <button id="searchBtn" type="button" class="search-btn">
+                <span class="search-icon">🔍</span>
+              </button>
+            </div>
+            <div id="searchResults" class="search-results"></div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">心率设置</h2>
+          <div class="form-group">
+            <label for="hrRest" class="form-label">静息心率 <span class="unit">bpm</span></label>
+            <div class="input-wrapper">
+              <input id="hrRest" type="number" min="30" max="120" value="60" class="form-input" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="hrMax" class="form-label">最大心率 <span class="unit">bpm</span></label>
+            <div class="input-wrapper">
+              <input id="hrMax" type="number" min="100" max="220" value="180" class="form-input" />
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">跑步设置</h2>
+          <div class="form-group">
+            <label for="lapCount" class="form-label">圈数（重复次数）</label>
+            <div class="input-wrapper">
+              <input id="lapCount" type="number" min="1" value="1" class="form-input" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="exportCount" class="form-label">导出份数</label>
+            <div class="input-wrapper">
+              <input id="exportCount" type="number" min="1" max="10" value="1" class="form-input" />
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">导出配置</h2>
+          <div id="exportTimes" class="export-times"></div>
+        </section>
+
+        <section class="section info-section">
+          <div class="distance-card">
+            <div class="distance-icon">📏</div>
+            <div class="distance-content">
+              <div id="distanceInfo" class="distance-info">总距离约：0 公里</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <h2 class="section-title">预览数据</h2>
+          <div id="liveInfo" class="live-info">等待预览...</div>
+        </section>
+
+        <section class="section charts-section">
+          <div class="preview-chart">
+            <h3 class="chart-title">配速预览</h3>
+            <div class="chart-wrapper">
+              <canvas id="paceChart"></canvas>
+            </div>
+          </div>
+          <div class="preview-chart">
+            <h3 class="chart-title">心率预览</h3>
+            <div class="chart-wrapper">
+              <canvas id="hrChart"></canvas>
+            </div>
+          </div>
+        </section>
+
+        <section class="section message-section">
+          <div id="message" class="message"></div>
+        </section>
+
+        <section class="section actions-section">
+          <div class="button-group">
+            <button id="clearRoute" type="button" class="btn btn-secondary">
+              <span class="btn-icon">🗑️</span>
+              清除轨迹
+            </button>
+            <button id="freehandBtn" type="button" class="btn btn-primary">
+              <span class="btn-icon">✏️</span>
+              自由手绘
+            </button>
+          </div>
+          <div class="button-group">
+            <button id="previewBtn" type="button" class="btn btn-accent">
+              <span class="btn-icon">👁️</span>
+              预览曲线
+            </button>
+            <button id="generateFit" type="button" class="btn btn-success">
+              <span class="btn-icon">⬇️</span>
+              生成 FIT 文件
+            </button>
+          </div>
+        </section>
+
+        <section class="section tip-section">
+          <div class="tip-card">
+            <span class="tip-icon">💡</span>
+            <p class="tip-text">
+              点击<strong>自由手绘</strong>按钮进入绘图模式，在地图上按住鼠标左键并拖动绘制跑步轨迹。
+              点击已画好的轨迹可进行编辑或拖拽。
+            </p>
+          </div>
+        </section>
+      </div>
+    </aside>
+    <main class="map-container">
+      <div id="map"></div>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="./main.js"></script>
+</body>
+
+</html>
