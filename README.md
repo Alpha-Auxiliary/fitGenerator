@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/Alpha-Auxiliary/fitGenerator?label=%E4%B8%8B%E8%BD%BD&color=blue)](https://github.com/Alpha-Auxiliary/fitGenerator/releases/latest)
 
 一个基于 Web 的跑步轨迹绘制工具，可以在地图上自由绘制跑步路线，并生成符合 Garmin 标准的 FIT 运动文件。
-
+![功能预览](example.png)
 ## ✨ 功能特点
 
 - 🗺️ **地图绘制**：在地图上自由手绘跑步轨迹
