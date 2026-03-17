@@ -7,7 +7,10 @@ on:
       - master
     tags:
       - 'v*'
-  workflow_dispatch: # 支持手动触发
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -27,7 +30,6 @@ jobs:
         run: npm install
 
       - name: Build EXE
-        # 显式使用 powershell 确保逻辑一致
         shell: pwsh
         run: |
           npm run build
@@ -39,7 +41,7 @@ jobs:
             Write-Host "Success: fit-tool.exe found!"
           } else {
             Write-Error "Error: fit-tool.exe NOT found in dist/ directory"
-            exit 1
+            exit -1
           }
 
       - name: Upload artifact
@@ -49,11 +51,27 @@ jobs:
           path: dist/fit-tool.exe
           if-no-files-found: error
 
-      - name: Create Release
+      # 逻辑 1：针对普通的 push 分支，更新一个固定的 Latest Release
+      - name: Update Latest Development Release
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "Latest Development Build (Auto-generated)"
+          body: "This release contains the most recent build from the development branch."
+          files: dist/fit-tool.exe
+          prerelease: true
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 逻辑 2：针对打标签的版本号 (如 v1.0.1)，创建一个独立的正式 Release
+      - name: Create Versioned Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: dist/fit-tool.exe
           generate_release_notes: true
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
