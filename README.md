@@ -1,4 +1,4 @@
-# FIT 轨迹生成工具 - 校园跑
+# FIT 轨迹生成工具 - Keep校园跑
 
 一个基于 Web 的跑步轨迹绘制工具，可以在地图上自由绘制跑步路线，并生成符合 Garmin 标准的 FIT 运动文件。
 
@@ -40,8 +40,7 @@
 
 1. 克隆仓库
 ```bash
-git clone <repository-url>
-cd 校园跑
+git clone https://github.com/Alpha-Auxiliary/fitGenerator.git
 ```
 
 2. 安装依赖
