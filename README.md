@@ -82,8 +82,9 @@ GitHub Actions 中使用同名配置：
 ## ⚙️ 构建与分发
 
 本项目配置了 **GitHub Actions** 自动化流水线：
-- **自动构建**：每当代码推送到 `main` 分支时，会自动生成最新的 EXE。
-- **自动发布**：推送以 `v` 开头的标签（如 `git tag v1.0.0`）会触发正式 Release。
+- **自动构建**：每次向任意分支推送代码时，都会自动生成 EXE。
+- **构建分发**：每次构建都会上传 `fit-tool.exe` 到 GitHub Actions 的 Artifacts，保留 30 天。
+- **正式发布**：推送到 `main` / `master` 或推送以 `v` 开头的标签（如 `git tag v1.0.0`）会自动更新 Release。
 
 **本地手工构建 EXE：**
 ```bash
