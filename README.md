@@ -6,6 +6,7 @@
 一个基于 Web 的跑步轨迹绘制工具，可以在地图上自由绘制跑步路线，并生成符合 Garmin 标准的 FIT 运动文件。
 
 ![功能预览](example.png)
+
 ## ✨ 功能特点
 
 - 🗺️ **地图绘制**：在地图上自由手绘跑步轨迹
@@ -18,27 +19,36 @@
 
 ## 🚀 快速开始
 
+**_如果你选择自己构建需要在.env文件中填写API，直接使用exe则无需填写API_**
+
 ### 方式 1：直接下载（推荐）
+
 如果你是 Windows 用户，无需安装 Node.js 环境：
+
 1. 前往 [Releases](https://github.com/Alpha-Auxiliary/fitGenerator/releases/latest) 页面。
 2. 下载最新的 `fit-tool.exe`。
 3. 双击运行，程序会自动在默认浏览器中打开工具界面。
 
 ### 方式 2：开发者模式
+
 1. **克隆仓库**
    ```bash
    git clone https://github.com/Alpha-Auxiliary/fitGenerator.git
    cd fitGenerator
    ```
-2. **安装依赖**
+2. **填写API**
+   ```bash
+   打开.env文件填写对应的地图API
+   ```
+3. **安装依赖**
    ```bash
    npm install
    ```
-3. **启动服务**
+4. **启动服务**
    ```bash
    npm run dev
    ```
-4. **访问应用**
+5. **访问应用**
    打开浏览器访问 `http://localhost:8080`
 
 ## 🛠️ 技术栈
@@ -61,15 +71,6 @@
 
 页面左侧“地图源”下拉框可以在百度地图、高德地图、谷歌地图之间切换。
 
-GitHub Actions 中使用同名配置：
-
-- Repository variable：`MAP_DEFAULT_PROVIDER`
-- Repository secrets：`BAIDU_MAP_AK`、`AMAP_MAP_KEY`、`AMAP_SECURITY_JS_CODE`、`GOOGLE_MAPS_API_KEY`
-
-自动构建时，GitHub Actions 会用这些 Secrets 生成临时的 `build-map-config.json` 并打包进 EXE。该文件已被 `.gitignore` 忽略，不会提交到仓库。这样别人下载你构建的程序时可以直接使用你配置的地图 Key，而 GitHub 仓库源码中不会出现 Key 明文。
-
-注意：地图 JavaScript SDK 的 Key 必须下发到浏览器才能加载地图，所以运行程序的人仍可能通过浏览器开发者工具或网络请求看到这些 Key。请在百度/高德/Google 控制台为 Key 配置域名、IP、额度、API 白名单等限制。
-
 ## 📖 使用指南
 
 1. **定位地点**：在搜索框中输入地点（如"天安门"），选择结果自动跳转。
@@ -82,14 +83,17 @@ GitHub Actions 中使用同名配置：
 ## ⚙️ 构建与分发
 
 本项目配置了 **GitHub Actions** 自动化流水线：
+
 - **自动构建**：每次向任意分支推送代码时，都会自动生成 EXE。
 - **构建分发**：每次构建都会上传 `fit-tool.exe` 到 GitHub Actions 的 Artifacts，保留 30 天。
 - **正式发布**：推送到 `main` / `master` 会自动创建一个新的 `build-日期-提交` 标签和 Release；推送以 `v` 开头的标签（如 `git tag v1.0.0`）会使用该版本标签发布。
 
 **本地手工构建 EXE：**
+
 ```bash
 npm run build
 ```
+
 产物将生成在 `dist/fit-tool.exe`。
 
 ## 🔬 模拟算法
@@ -106,6 +110,7 @@ npm run build
 ---
 
 ## 许可证
+
 [MIT License](LICENSE)
 
 欢迎提交 Issue 或 Pull Request 来完善本项目！
