@@ -78,18 +78,37 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Create or Update Release
+      - name: Prepare release tag
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          if ("${{ github.ref }}" -like "refs/tags/v*") {
+            $releaseTag = "${{ github.ref_name }}"
+            $releaseName = "${{ github.ref_name }}"
+          } else {
+            $timestamp = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
+            $shortSha = "${{ github.sha }}".Substring(0, 7)
+            $releaseTag = "build-$timestamp-$shortSha"
+            $releaseName = "Build $timestamp ($shortSha)"
+          }
+
+          "RELEASE_TAG=$releaseTag" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "RELEASE_NAME=$releaseName" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Create Release
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
-          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Latest Stable Build' }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ env.RELEASE_NAME }}
           body: |
             ### 自动构建发布
 
             这是本项目的最新稳定生成版本。
 
             - **分支/标签**: ${{ github.ref_name }}
+            - **发布标签**: ${{ env.RELEASE_TAG }}
             - **提交**: ${{ github.sha }}
             - **说明**: 下载下方的 `fit-tool.exe` 即可直接使用。
           files: dist/fit-tool.exe
