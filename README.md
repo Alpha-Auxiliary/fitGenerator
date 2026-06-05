@@ -4,6 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/Alpha-Auxiliary/fitGenerator?label=%E4%B8%8B%E8%BD%BD&color=blue)](https://github.com/Alpha-Auxiliary/fitGenerator/releases/latest)
 
 一个基于 Web 的跑步轨迹绘制工具，可以在地图上自由绘制跑步路线，并生成符合 Garmin 标准的 FIT 运动文件。
+
 ![功能预览](example.png)
 ## ✨ 功能特点
 
@@ -35,7 +36,7 @@
    ```
 3. **启动服务**
    ```bash
-   npm start
+   npm run dev
    ```
 4. **访问应用**
    打开浏览器访问 `http://localhost:8080`
@@ -44,9 +45,30 @@
 
 - **后端**：[Express.js](https://expressjs.com/), [@garmin/fitsdk](https://www.npmjs.com/package/@garmin/fitsdk)
 - **编译/打包**：[@vercel/ncc](https://github.com/vercel/ncc), [pkg](https://github.com/vercel/pkg)
-- **地图**：[Leaflet](https://leafletjs.com/), [Leaflet-Geoman](https://geoman.io/leaflet-geoman/)
+- **地图**：可切换百度地图、高德地图、谷歌地图
 - **图表**：[Chart.js](https://www.chartjs.org/)
-- **搜索**：[OpenStreetMap Nominatim](https://nominatim.org/)
+- **搜索**：跟随当前地图源使用对应地点搜索
+
+## 🗺️ 地图源配置
+
+本地运行时，在项目根目录的 `.env` 中配置地图源和对应 Key：
+
+- `MAP_DEFAULT_PROVIDER`：默认地图源，支持 `google`、`baidu`、`amap`，默认 `google`
+- `BAIDU_MAP_AK`：百度地图 AK
+- `AMAP_MAP_KEY`：高德地图 Key
+- `AMAP_SECURITY_JS_CODE`：高德安全密钥（如控制台开启了安全密钥校验）
+- `GOOGLE_MAPS_API_KEY`：Google Maps JavaScript API Key
+
+页面左侧“地图源”下拉框可以在百度地图、高德地图、谷歌地图之间切换。
+
+GitHub Actions 中使用同名配置：
+
+- Repository variable：`MAP_DEFAULT_PROVIDER`
+- Repository secrets：`BAIDU_MAP_AK`、`AMAP_MAP_KEY`、`AMAP_SECURITY_JS_CODE`、`GOOGLE_MAPS_API_KEY`
+
+自动构建时，GitHub Actions 会用这些 Secrets 生成临时的 `build-map-config.json` 并打包进 EXE。该文件已被 `.gitignore` 忽略，不会提交到仓库。这样别人下载你构建的程序时可以直接使用你配置的地图 Key，而 GitHub 仓库源码中不会出现 Key 明文。
+
+注意：地图 JavaScript SDK 的 Key 必须下发到浏览器才能加载地图，所以运行程序的人仍可能通过浏览器开发者工具或网络请求看到这些 Key。请在百度/高德/Google 控制台为 Key 配置域名、IP、额度、API 白名单等限制。
 
 ## 📖 使用指南
 

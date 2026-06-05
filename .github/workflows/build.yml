@@ -29,6 +29,28 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Generate bundled map config
+        shell: pwsh
+        env:
+          MAP_DEFAULT_PROVIDER: ${{ vars.MAP_DEFAULT_PROVIDER || 'google' }}
+          BAIDU_MAP_AK: ${{ secrets.BAIDU_MAP_AK }}
+          AMAP_MAP_KEY: ${{ secrets.AMAP_MAP_KEY }}
+          AMAP_SECURITY_JS_CODE: ${{ secrets.AMAP_SECURITY_JS_CODE }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+        run: |
+          $config = @{
+            defaultProvider = $env:MAP_DEFAULT_PROVIDER
+            providers = @{
+              baidu = @{ ak = $env:BAIDU_MAP_AK }
+              amap = @{
+                key = $env:AMAP_MAP_KEY
+                securityJsCode = $env:AMAP_SECURITY_JS_CODE
+              }
+              google = @{ apiKey = $env:GOOGLE_MAPS_API_KEY }
+            }
+          }
+          $config | ConvertTo-Json -Depth 5 | Set-Content -Path build-map-config.json -Encoding UTF8
+
       - name: Build EXE
         shell: pwsh
         run: |

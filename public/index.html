@@ -5,9 +5,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>FIT 轨迹生成工具 - 校园跑</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.css" />
   <link rel="stylesheet" href="./style.css" />
 </head>
 
@@ -25,6 +22,16 @@
       <div class="sidebar-content">
         <section class="section">
           <h2 class="section-title">地点搜索</h2>
+          <div class="form-group">
+            <label for="mapProvider" class="form-label">地图源</label>
+            <div class="input-wrapper">
+              <select id="mapProvider" class="form-input">
+                <option value="baidu">百度地图</option>
+                <option value="amap">高德地图</option>
+                <option value="google">谷歌地图</option>
+              </select>
+            </div>
+          </div>
           <div class="search-wrapper">
             <div class="search-input-group">
               <input id="searchInput" type="text" placeholder="搜索地点（如：清华大学、天安门）" class="search-input" />
@@ -133,8 +140,8 @@
           <div class="tip-card">
             <span class="tip-icon">💡</span>
             <p class="tip-text">
-              点击<strong>自由手绘</strong>按钮进入绘图模式，在地图上按住鼠标左键并拖动绘制跑步轨迹。
-              点击已画好的轨迹可进行编辑或拖拽。
+              点击<strong>自由手绘</strong>按钮进入绘图模式，按住鼠标左键在地图上拖动绘制跑步轨迹，松开鼠标结束绘制。
+              绘制完成后可点击轨迹进行编辑或拖拽调整。
             </p>
           </div>
         </section>
@@ -145,9 +152,6 @@
     </main>
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@latest/dist/leaflet-geoman.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="./main.js"></script>
 </body>

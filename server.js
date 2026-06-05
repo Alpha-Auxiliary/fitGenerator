@@ -35,11 +35,71 @@ const getPublicPath = () => {
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+const MAP_CONFIG = {
+  DEFAULT_PROVIDER: "google",
+  VALID_PROVIDERS: new Set(["baidu", "amap", "google"]),
+};
+
+function readBuildMapConfig() {
+  const paths = [
+    path.join(process.cwd(), "build-map-config.json"),
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "build-map-config.json"),
+    path.join(__dirname, "build-map-config.json"),
+    "C:\\snapshot\\build-map-config.json",
+    "/snapshot/build-map-config.json",
+  ];
+
+  for (const p of paths) {
+    try {
+      if (fs.existsSync(p)) {
+        return JSON.parse(fs.readFileSync(p, "utf8"));
+      }
+    } catch (e) {
+      console.error("Failed to read build map config:", e);
+    }
+  }
+
+  return {};
+}
+
+const buildMapConfig = readBuildMapConfig();
+
+function getMapProviderFromEnv() {
+  const provider = (
+    process.env.MAP_DEFAULT_PROVIDER ||
+    buildMapConfig.defaultProvider ||
+    MAP_CONFIG.DEFAULT_PROVIDER
+  ).toLowerCase();
+  return MAP_CONFIG.VALID_PROVIDERS.has(provider) ? provider : MAP_CONFIG.DEFAULT_PROVIDER;
+}
+
+function envOrBuild(envName, providerId, keyName) {
+  return process.env[envName] || buildMapConfig.providers?.[providerId]?.[keyName] || "";
+}
+
 //pkg 内部资源路径。__dirname 在被 ncc 编译后会指向虚拟系统的根。
 const publicPath = path.join(path.resolve(), "public");
 
 app.use(express.json({ limit: "5mb" }));
 app.use(express.static(publicPath));
+
+app.get("/api/map-config", (req, res) => {
+  res.json({
+    defaultProvider: getMapProviderFromEnv(),
+    providers: {
+      baidu: {
+        ak: envOrBuild("BAIDU_MAP_AK", "baidu", "ak"),
+      },
+      amap: {
+        key: envOrBuild("AMAP_MAP_KEY", "amap", "key"),
+        securityJsCode: envOrBuild("AMAP_SECURITY_JS_CODE", "amap", "securityJsCode"),
+      },
+      google: {
+        apiKey: envOrBuild("GOOGLE_MAPS_API_KEY", "google", "apiKey"),
+      },
+    },
+  });
+});
 
 // 兜底路由
 app.get("*", (req, res, next) => {

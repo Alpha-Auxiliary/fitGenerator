@@ -3,9 +3,23 @@ const CONFIG = {
     INITIAL_LAT: 39.9042,
     INITIAL_LNG: 116.4074,
     INITIAL_ZOOM: 13,
-    TILE_URL: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    MAX_ZOOM: 19,
-    NOMINATIM_API: "https://nominatim.openstreetmap.org/search"
+    MAX_ZOOM: 18,
+    DEFAULT_PROVIDER: "google",
+    PROVIDERS: {
+      baidu: {
+        label: "百度地图",
+        ak: ""
+      },
+      amap: {
+        label: "高德地图",
+        key: "",
+        securityJsCode: ""
+      },
+      google: {
+        label: "谷歌地图",
+        apiKey: ""
+      }
+    }
   },
   GEO: {
     EARTH_RADIUS_METERS: 6371000
@@ -32,7 +46,7 @@ const CONFIG = {
     DEFAULT: 1
   },
   PREVIEW: {
-    MARKER_RADIUS: 6,
+    MARKER_RADIUS: 8,
     MARKER_COLOR: "#1976d2",
     STEP_MS: 100
   },
@@ -43,30 +57,472 @@ const CONFIG = {
   }
 };
 
-const map = L.map("map").setView(
-  [CONFIG.MAP.INITIAL_LAT, CONFIG.MAP.INITIAL_LNG],
-  CONFIG.MAP.INITIAL_ZOOM
-);
-
-L.tileLayer(CONFIG.MAP.TILE_URL, {
-  maxZoom: CONFIG.MAP.MAX_ZOOM,
-  attribution: "&copy; OpenStreetMap contributors"
-}).addTo(map);
-
+// 地图实例
+let map = null;
+let mapAdapter = null;
+let activeProvider = localStorage.getItem("mapProvider") || CONFIG.MAP.DEFAULT_PROVIDER;
+if (!CONFIG.MAP.PROVIDERS[activeProvider]) {
+  activeProvider = CONFIG.MAP.DEFAULT_PROVIDER;
+}
+// 路线折线
+let routePolyline = null;
+// 路线点数组
 let routePoints = [];
-let paceChart = null;
-let hrChart = null;
+// 折线编辑器
+let polyEditor = null;
+// 是否处于绘图模式
+let isDrawingMode = false;
+// 是否正在绘制
+let isDrawing = false;
+// 绘制的临时点
+let drawingPoints = [];
+// 搜索结果标记
+let searchMarker = null;
+// 预览标记
+let previewMarker = null;
+// 预览数据
 let previewData = null;
 let previewTimer = null;
 let previewIndex = 0;
-let previewMarker = null;
-let freehandLayer = null;
 
-let isFreehandMode = false;
-let isDrawing = false;
-let searchMarker = null;
+// 图表
+let paceChart = null;
+let hrChart = null;
 
-async function searchLocation(query) {
+function loadScriptOnce(id, src, globalCheck) {
+  if (globalCheck && globalCheck()) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const existing = document.getElementById(id);
+    if (existing) existing.remove();
+
+    const script = document.createElement("script");
+    script.id = id;
+    script.src = src;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`地图脚本加载失败：${id}`));
+    document.head.appendChild(script);
+  });
+}
+
+function loadJsonpScript(id, src, callbackName, globalCheck) {
+  if (globalCheck && globalCheck()) return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const existing = document.getElementById(id);
+    if (existing) existing.remove();
+
+    window[callbackName] = () => resolve();
+    const script = document.createElement("script");
+    script.id = id;
+    script.src = `${src}${src.includes("?") ? "&" : "?"}callback=${callbackName}`;
+    script.async = true;
+    script.defer = true;
+    script.onerror = () => reject(new Error(`地图脚本加载失败：${id}`));
+    document.head.appendChild(script);
+  });
+}
+
+function mapProviderConfig(id = activeProvider) {
+  return CONFIG.MAP.PROVIDERS[id] || CONFIG.MAP.PROVIDERS[CONFIG.MAP.DEFAULT_PROVIDER];
+}
+
+async function loadMapRuntimeConfig() {
+  try {
+    const res = await fetch("/api/map-config");
+    if (!res.ok) throw new Error("地图配置加载失败");
+    const data = await res.json();
+
+    if (data.defaultProvider && CONFIG.MAP.PROVIDERS[data.defaultProvider]) {
+      CONFIG.MAP.DEFAULT_PROVIDER = data.defaultProvider;
+    }
+
+    if (data.providers) {
+      Object.keys(CONFIG.MAP.PROVIDERS).forEach(providerId => {
+        if (data.providers[providerId]) {
+          Object.assign(CONFIG.MAP.PROVIDERS[providerId], data.providers[providerId]);
+        }
+      });
+    }
+
+    const savedProvider = localStorage.getItem("mapProvider");
+    activeProvider = CONFIG.MAP.PROVIDERS[savedProvider] ? savedProvider : CONFIG.MAP.DEFAULT_PROVIDER;
+  } catch (e) {
+    console.error(e);
+    updateMessage("地图配置加载失败，将使用默认地图源", true);
+    activeProvider = CONFIG.MAP.DEFAULT_PROVIDER;
+  }
+}
+
+function closePolylineEditor() {
+  if (polyEditor && mapAdapter) {
+    mapAdapter.closeEdit(polyEditor);
+  }
+  polyEditor = null;
+}
+
+function resetMapState() {
+  if (previewTimer) {
+    clearInterval(previewTimer);
+    previewTimer = null;
+  }
+  closePolylineEditor();
+  routePolyline = null;
+  searchMarker = null;
+  previewMarker = null;
+  drawingPoints = [];
+  routePoints = [];
+  map = null;
+  mapAdapter = null;
+  const mapEl = document.getElementById("map");
+  const freshMapEl = document.createElement("div");
+  freshMapEl.id = "map";
+  mapEl.replaceWith(freshMapEl);
+  updateDistanceInfo();
+}
+
+function makeBaiduAdapter() {
+  return {
+    async load() {
+      const cfg = mapProviderConfig("baidu");
+      if (!cfg.ak) throw new Error("缺少 BAIDU_MAP_AK");
+      await loadJsonpScript(
+        "baidu-map-sdk",
+        `https://api.map.baidu.com/api?v=1.0&type=webgl&ak=${encodeURIComponent(cfg.ak)}`,
+        "initBaiduMapSdk",
+        () => window.BMapGL
+      );
+    },
+    init(containerId) {
+      map = new BMapGL.Map(containerId);
+      map.centerAndZoom(new BMapGL.Point(CONFIG.MAP.INITIAL_LNG, CONFIG.MAP.INITIAL_LAT), CONFIG.MAP.INITIAL_ZOOM);
+      map.enableScrollWheelZoom(true);
+      map.addControl(new BMapGL.ScaleControl());
+      map.addControl(new BMapGL.ZoomControl({ anchor: BMAP_ANCHOR_TOP_RIGHT }));
+    },
+    getContainer: () => map.getContainer(),
+    point: (lng, lat) => new BMapGL.Point(lng, lat),
+    eventLngLat(e) {
+      const point = e.latlng || e.point || e.lnglat;
+      return { lng: point.lng, lat: point.lat };
+    },
+    onMapEvent: (name, handler) => map.addEventListener(name, handler),
+    createPolyline(points) {
+      const polyline = new BMapGL.Polyline(points, {
+        strokeColor: CONFIG.COLORS.TRAJECTORY,
+        strokeWeight: 4,
+        strokeOpacity: 0.9
+      });
+      map.addOverlay(polyline);
+      return polyline;
+    },
+    setPolylinePath: (polyline, points) => polyline.setPath(points),
+    getPolylinePath: (polyline) => polyline.getPath().map(p => ({ lng: p.lng, lat: p.lat })),
+    onPolylineClick: (polyline, handler) => polyline.addEventListener("click", handler),
+    enablePolylineEdit(polyline, onUpdate) {
+      polyline.enableEditing();
+      polyline.addEventListener("lineupdate", onUpdate);
+      return polyline;
+    },
+    closeEdit(editor) {
+      if (editor && editor.disableEditing) editor.disableEditing();
+    },
+    removeOverlay: (overlay) => overlay && map.removeOverlay(overlay),
+    addMarker(point, title) {
+      const marker = new BMapGL.Marker(point, { title });
+      map.addOverlay(marker);
+      return marker;
+    },
+    centerAndZoom: (point, zoom) => map.centerAndZoom(point, zoom),
+    setCursor: (cursor) => map.setDefaultCursor(cursor),
+    enableDragging: () => map.enableDragging(),
+    disableDragging: () => map.disableDragging(),
+    createPreviewMarker(point) {
+      const marker = new BMapGL.Circle(point, CONFIG.PREVIEW.MARKER_RADIUS, {
+        fillColor: CONFIG.PREVIEW.MARKER_COLOR,
+        fillOpacity: 1,
+        strokeColor: CONFIG.PREVIEW.MARKER_COLOR,
+        strokeWeight: 2
+      });
+      map.addOverlay(marker);
+      return marker;
+    },
+    movePreviewMarker: (marker, point) => marker.setCenter(point),
+    search(query, onResults, onError) {
+      const localSearch = new BMapGL.LocalSearch(map, {
+        onSearchComplete(results) {
+          if (localSearch.getStatus() !== BMAP_STATUS_SUCCESS) {
+            onResults([]);
+            return;
+          }
+          const count = results.getCurrentNumPois ? results.getCurrentNumPois() : 0;
+          const items = [];
+          for (let i = 0; i < Math.min(count, 5); i++) {
+            const poi = results.getPoi(i);
+            if (poi && poi.point) {
+              items.push({ name: poi.title, address: poi.address || "", point: poi.point });
+            }
+          }
+          onResults(items);
+        }
+      });
+      try {
+        localSearch.search(query);
+      } catch (e) {
+        onError(e);
+      }
+    }
+  };
+}
+
+function makeAmapAdapter() {
+  return {
+    async load() {
+      const cfg = mapProviderConfig("amap");
+      if (!cfg.key) throw new Error("缺少 AMAP_MAP_KEY");
+      if (cfg.securityJsCode) {
+        window._AMapSecurityConfig = { securityJsCode: cfg.securityJsCode };
+      }
+      await loadScriptOnce(
+        "amap-sdk",
+        `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(cfg.key)}&plugin=AMap.Scale,AMap.ToolBar,AMap.PolyEditor,AMap.PlaceSearch`,
+        () => window.AMap
+      );
+    },
+    init(containerId) {
+      map = new AMap.Map(containerId, {
+        zoom: CONFIG.MAP.INITIAL_ZOOM,
+        center: [CONFIG.MAP.INITIAL_LNG, CONFIG.MAP.INITIAL_LAT],
+        viewMode: "2D"
+      });
+      map.addControl(new AMap.Scale());
+      map.addControl(new AMap.ToolBar({ position: "RT" }));
+    },
+    getContainer: () => map.getContainer(),
+    point: (lng, lat) => [lng, lat],
+    eventLngLat(e) {
+      return { lng: e.lnglat.lng, lat: e.lnglat.lat };
+    },
+    onMapEvent: (name, handler) => map.on(name, handler),
+    createPolyline(points) {
+      const polyline = new AMap.Polyline({
+        path: points,
+        strokeColor: CONFIG.COLORS.TRAJECTORY,
+        strokeWeight: 4,
+        strokeOpacity: 0.9
+      });
+      map.add(polyline);
+      return polyline;
+    },
+    setPolylinePath: (polyline, points) => polyline.setPath(points),
+    getPolylinePath: (polyline) => polyline.getPath().map(p => ({ lng: p.lng, lat: p.lat })),
+    onPolylineClick: (polyline, handler) => polyline.on("click", handler),
+    enablePolylineEdit(polyline, onUpdate) {
+      const editor = new AMap.PolyEditor(map, polyline);
+      editor.open();
+      editor.on("end", onUpdate);
+      return editor;
+    },
+    closeEdit(editor) {
+      if (editor && editor.close) editor.close();
+    },
+    removeOverlay: (overlay) => overlay && map.remove(overlay),
+    addMarker(point, title) {
+      const marker = new AMap.Marker({ position: point, title });
+      map.add(marker);
+      return marker;
+    },
+    centerAndZoom(point, zoom) {
+      map.setCenter(point);
+      map.setZoom(zoom);
+    },
+    setCursor: (cursor) => map.setDefaultCursor(cursor),
+    enableDragging: () => map.setStatus({ dragEnable: true }),
+    disableDragging: () => map.setStatus({ dragEnable: false }),
+    createPreviewMarker(point) {
+      const marker = new AMap.CircleMarker({
+        center: point,
+        radius: CONFIG.PREVIEW.MARKER_RADIUS,
+        fillColor: CONFIG.PREVIEW.MARKER_COLOR,
+        fillOpacity: 1,
+        strokeColor: CONFIG.PREVIEW.MARKER_COLOR,
+        strokeWeight: 2
+      });
+      map.add(marker);
+      return marker;
+    },
+    movePreviewMarker: (marker, point) => marker.setCenter(point),
+    search(query, onResults, onError) {
+      AMap.plugin("AMap.PlaceSearch", () => {
+        const placeSearch = new AMap.PlaceSearch({ pageSize: 5, pageIndex: 1 });
+        placeSearch.search(query, (status, result) => {
+          if (status !== "complete" || !result.poiList || !result.poiList.pois) {
+            onResults([]);
+            return;
+          }
+          onResults(result.poiList.pois.slice(0, 5).map(poi => ({
+            name: poi.name,
+            address: poi.address || poi.cityname || poi.adname || "",
+            point: [poi.location.lng, poi.location.lat]
+          })));
+        });
+      });
+    }
+  };
+}
+
+function makeGoogleAdapter() {
+  return {
+    async load() {
+      const cfg = mapProviderConfig("google");
+      if (!cfg.apiKey) throw new Error("缺少 GOOGLE_MAPS_API_KEY");
+      await loadJsonpScript(
+        "google-map-sdk",
+        `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(cfg.apiKey)}&libraries=places`,
+        "initGoogleMapSdk",
+        () => window.google && window.google.maps
+      );
+    },
+    init(containerId) {
+      map = new google.maps.Map(document.getElementById(containerId), {
+        center: { lat: CONFIG.MAP.INITIAL_LAT, lng: CONFIG.MAP.INITIAL_LNG },
+        zoom: CONFIG.MAP.INITIAL_ZOOM,
+        mapTypeControl: false,
+        streetViewControl: false
+      });
+    },
+    getContainer: () => document.getElementById("map"),
+    point: (lng, lat) => ({ lng, lat }),
+    eventLngLat(e) {
+      return { lng: e.latLng.lng(), lat: e.latLng.lat() };
+    },
+    onMapEvent: (name, handler) => google.maps.event.addListener(map, name, handler),
+    createPolyline(points) {
+      return new google.maps.Polyline({
+        path: points,
+        map,
+        strokeColor: CONFIG.COLORS.TRAJECTORY,
+        strokeWeight: 4,
+        strokeOpacity: 0.9
+      });
+    },
+    setPolylinePath: (polyline, points) => polyline.setPath(points),
+    getPolylinePath(polyline) {
+      return polyline.getPath().getArray().map(p => ({ lng: p.lng(), lat: p.lat() }));
+    },
+    onPolylineClick: (polyline, handler) => google.maps.event.addListener(polyline, "click", handler),
+    enablePolylineEdit(polyline, onUpdate) {
+      polyline.setEditable(true);
+      const path = polyline.getPath();
+      const listeners = [
+        google.maps.event.addListener(path, "set_at", onUpdate),
+        google.maps.event.addListener(path, "insert_at", onUpdate),
+        google.maps.event.addListener(path, "remove_at", onUpdate)
+      ];
+      return { polyline, listeners };
+    },
+    closeEdit(editor) {
+      if (!editor) return;
+      editor.polyline.setEditable(false);
+      editor.listeners.forEach(listener => listener.remove());
+    },
+    removeOverlay: (overlay) => overlay && overlay.setMap(null),
+    addMarker(point, title) {
+      return new google.maps.Marker({ position: point, map, title });
+    },
+    centerAndZoom(point, zoom) {
+      map.setCenter(point);
+      map.setZoom(zoom);
+    },
+    setCursor: (cursor) => map.setOptions({ draggableCursor: cursor || null }),
+    enableDragging: () => map.setOptions({ draggable: true }),
+    disableDragging: () => map.setOptions({ draggable: false }),
+    createPreviewMarker(point) {
+      return new google.maps.Circle({
+        center: point,
+        radius: CONFIG.PREVIEW.MARKER_RADIUS,
+        fillColor: CONFIG.PREVIEW.MARKER_COLOR,
+        fillOpacity: 1,
+        strokeColor: CONFIG.PREVIEW.MARKER_COLOR,
+        strokeWeight: 2,
+        map
+      });
+    },
+    movePreviewMarker: (marker, point) => marker.setCenter(point),
+    search(query, onResults, onError) {
+      const service = new google.maps.places.PlacesService(map);
+      service.textSearch({ query }, (results, status) => {
+        if (status !== google.maps.places.PlacesServiceStatus.OK || !results) {
+          onResults([]);
+          return;
+        }
+        onResults(results.slice(0, 5).map(place => ({
+          name: place.name,
+          address: place.formatted_address || place.vicinity || "",
+          point: place.geometry.location
+        })));
+      });
+    }
+  };
+}
+
+function createMapAdapter(providerId) {
+  if (providerId === "amap") return makeAmapAdapter();
+  if (providerId === "google") return makeGoogleAdapter();
+  return makeBaiduAdapter();
+}
+
+async function initMap(providerId = activeProvider) {
+  activeProvider = providerId;
+  localStorage.setItem("mapProvider", activeProvider);
+  resetMapState();
+
+  const select = document.getElementById("mapProvider");
+  if (select) select.value = activeProvider;
+
+  mapAdapter = createMapAdapter(activeProvider);
+  try {
+    await mapAdapter.load();
+    mapAdapter.init("map");
+    initFreehandDrawing();
+    updateMessage(`当前地图源：${mapProviderConfig(activeProvider).label}`);
+  } catch (e) {
+    console.error(e);
+    mapAdapter = null;
+    updateMessage(`地图源加载失败：${mapProviderConfig(activeProvider).label}，请检查对应 Key`, true);
+  }
+}
+
+// 初始化搜索功能
+function initSearch() {
+  const searchInput = document.getElementById("searchInput");
+  const searchBtn = document.getElementById("searchBtn");
+  const resultsContainer = document.getElementById("searchResults");
+
+  let searchTimeout = null;
+
+  searchInput.addEventListener("input", (e) => {
+    if (searchTimeout) clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+      searchLocation(e.target.value);
+    }, 500);
+  });
+
+  searchInput.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
+      searchLocation(e.target.value);
+    }
+  });
+
+  searchBtn.addEventListener("click", () => {
+    searchLocation(searchInput.value);
+  });
+}
+
+// 搜索地点
+function searchLocation(query) {
   const resultsContainer = document.getElementById("searchResults");
   
   if (!query || query.trim().length < 2) {
@@ -77,57 +533,49 @@ async function searchLocation(query) {
   resultsContainer.innerHTML = '<div class="search-loading">搜索中...</div>';
 
   try {
-    const response = await fetch(
-      `${CONFIG.MAP.NOMINATIM_API}?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`,
-      {
-        headers: {
-          'Accept-Language': 'zh-CN'
-        }
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error("搜索失败");
-    }
-
-    const results = await response.json();
-
-    if (results.length === 0) {
-      resultsContainer.innerHTML = '<div class="search-error">未找到结果</div>';
+    if (!mapAdapter) {
+      resultsContainer.innerHTML = '<div class="search-error">地图源尚未加载完成</div>';
       return;
     }
 
-    resultsContainer.innerHTML = "";
-    results.forEach(result => {
-      const item = document.createElement("div");
-      item.className = "search-result-item";
-      
-      const name = document.createElement("div");
-      name.className = "search-result-name";
-      name.textContent = result.display_name.split(',')[0];
-      
-      const address = document.createElement("div");
-      address.className = "search-result-address";
-      address.textContent = result.display_name;
+    mapAdapter.search(query, (results) => {
+      if (!results.length) {
+        resultsContainer.innerHTML = '<div class="search-error">未找到结果</div>';
+        return;
+      }
 
-      item.appendChild(name);
-      item.appendChild(address);
+      resultsContainer.innerHTML = "";
+      results.forEach(result => {
+        const item = document.createElement("div");
+        item.className = "search-result-item";
+        
+        const name = document.createElement("div");
+        name.className = "search-result-name";
+        name.textContent = result.name;
+        
+        const address = document.createElement("div");
+        address.className = "search-result-address";
+        address.textContent = result.address || '';
 
-      item.addEventListener("click", () => {
-        const lat = parseFloat(result.lat);
-        const lon = parseFloat(result.lon);
-        
-        if (searchMarker) {
-          map.removeLayer(searchMarker);
-        }
-        
-        searchMarker = L.marker([lat, lon]).addTo(map);
-        map.setView([lat, lon], 15);
-        resultsContainer.innerHTML = "";
-        updateMessage(`已定位到：${result.display_name.split(',')[0]}`);
+        item.appendChild(name);
+        item.appendChild(address);
+
+        item.addEventListener("click", () => {
+          if (searchMarker) {
+            mapAdapter.removeOverlay(searchMarker);
+          }
+          
+          searchMarker = mapAdapter.addMarker(result.point, result.name);
+          mapAdapter.centerAndZoom(result.point, 15);
+          resultsContainer.innerHTML = "";
+          updateMessage(`已定位到：${result.name}`);
+        });
+
+        resultsContainer.appendChild(item);
       });
-
-      resultsContainer.appendChild(item);
+    }, (e) => {
+      console.error("搜索错误:", e);
+      resultsContainer.innerHTML = '<div class="search-error">搜索失败，请稍后重试</div>';
     });
   } catch (e) {
     console.error("搜索错误:", e);
@@ -135,35 +583,14 @@ async function searchLocation(query) {
   }
 }
 
-let searchTimeout = null;
-const searchInput = document.getElementById("searchInput");
-const searchBtn = document.getElementById("searchBtn");
-
-searchInput.addEventListener("input", (e) => {
-  if (searchTimeout) {
-    clearTimeout(searchTimeout);
-  }
-  searchTimeout = setTimeout(() => {
-    searchLocation(e.target.value);
-  }, 500);
-});
-
-searchInput.addEventListener("keypress", (e) => {
-  if (e.key === "Enter") {
-    searchLocation(e.target.value);
-  }
-});
-
-searchBtn.addEventListener("click", () => {
-  searchLocation(searchInput.value);
-});
-
+// 更新消息
 function updateMessage(text, isError = false) {
   const el = document.getElementById("message");
   el.textContent = text || "";
   el.className = "message" + (isError ? " error" : "");
 }
 
+// 计算两点间距离（Haversine公式）
 function haversineDistance(lat1, lon1, lat2, lon2) {
   const R = CONFIG.GEO.EARTH_RADIUS_METERS;
   const toRad = (d) => (d * Math.PI) / 180;
@@ -179,6 +606,7 @@ function haversineDistance(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
+// 计算总距离
 function computeDistanceMeters(points) {
   if (!points || points.length < 2) return 0;
   let total = 0;
@@ -189,13 +617,12 @@ function computeDistanceMeters(points) {
       points[i].lat,
       points[i].lng
     );
-    if (!isNaN(d)) {
-      total += d;
-    }
+    if (!isNaN(d)) total += d;
   }
   return total;
 }
 
+// 更新距离信息
 function updateDistanceInfo() {
   const el = document.getElementById("distanceInfo");
   if (!el) return;
@@ -217,116 +644,238 @@ function updateDistanceInfo() {
   }
 }
 
-function syncRouteFromMap() {
-  if (freehandLayer) {
-    const latlngs = freehandLayer.getLatLngs();
-    if (latlngs && latlngs.length > 0) {
-      routePoints = latlngs.map((p) => ({ lat: p.lat, lng: p.lng }));
-    } else {
-      routePoints = [];
-    }
-  } else {
-    routePoints = [];
+// 从折线同步路线点
+function syncRouteFromPolyline() {
+  if (routePolyline && mapAdapter) {
+    routePoints = mapAdapter.getPolylinePath(routePolyline).map(p => ({ lat: p.lat, lng: p.lng }));
+    updateDistanceInfo();
+    updateMessage(`已更新轨迹点：${routePoints.length}`);
   }
-  updateDistanceInfo();
-  updateMessage(routePoints.length > 0 ? `已获取轨迹点：${routePoints.length}` : "尚未绘制轨迹");
 }
 
-map.pm.addControls({
-  position: "topleft",
-  drawMarker: false,
-  drawCircleMarker: false,
-  drawPolyline: false,
-  drawRectangle: false,
-  drawPolygon: false,
-  drawCircle: false,
-  editMode: true,
-  dragMode: true,
-  cutPolygon: false,
-  removalMode: true
-});
+// 初始化自由手绘事件
+function initFreehandDrawing() {
+  if (!mapAdapter) return;
+  const mapContainer = mapAdapter.getContainer();
+  
+  // 点击地图其他空白处时，关闭折线编辑器
+  mapAdapter.onMapEvent('click', function() {
+    closePolylineEditor();
+  });
 
-map.pm.setLang("zh");
+  mapAdapter.onMapEvent('mousedown', function(e) {
+    // 忽略右键点击（开始绘制仅限左键或其他事件）
+    if (e.originEvent && (e.originEvent.button === 2 || e.originEvent.which === 3)) return;
 
-document.getElementById("clearRoute").addEventListener("click", () => {
-  if (freehandLayer) {
-    map.removeLayer(freehandLayer);
-    freehandLayer = null;
+    if (!isDrawingMode) return;
+    
+    if (isDrawing) return; // 已经在绘制中，忽略重复左键点击
+
+    isDrawing = true;
+    
+    const lnglat = mapAdapter.eventLngLat(e);
+    drawingPoints = [mapAdapter.point(lnglat.lng, lnglat.lat)];
+    
+    // 创建临时折线
+    if (routePolyline) {
+      mapAdapter.removeOverlay(routePolyline);
+    }
+    routePolyline = mapAdapter.createPolyline(drawingPoints);
+    
+    console.log('开始绘制，起点:', drawingPoints[0]);
+  });
+  
+  // 鼠标移动时添加点
+  mapAdapter.onMapEvent('mousemove', function(e) {
+    if (!isDrawingMode || !isDrawing) return;
+    
+    const lnglat = mapAdapter.eventLngLat(e);
+    drawingPoints.push(mapAdapter.point(lnglat.lng, lnglat.lat));
+    mapAdapter.setPolylinePath(routePolyline, drawingPoints);
+  });
+  
+  const finishDrawing = () => {
+    if (drawingPoints.length > 2) {
+      // 保留原本绘制的图形，不进行直线转换(不执行简化算法)
+      mapAdapter.setPolylinePath(routePolyline, drawingPoints);
+      routePoints = mapAdapter.getPolylinePath(routePolyline).map(p => ({ lat: p.lat, lng: p.lng }));
+      
+      // 添加轨迹的点击编辑事件
+      mapAdapter.onPolylineClick(routePolyline, function(evt) {
+        // 防止事件冒泡到map的click上
+        if (evt && evt.cancelBubble !== undefined) evt.cancelBubble = true;
+        
+        closePolylineEditor();
+        polyEditor = mapAdapter.enablePolylineEdit(routePolyline, syncRouteFromPolyline);
+      });
+      
+      updateDistanceInfo();
+      updateMessage(`已获取轨迹点：${routePoints.length}`);
+    } else {
+      // 如果仅仅是误点击，没有绘制出有效轨迹，则撤销刚才的无效临时线
+      if (routePolyline) {
+        mapAdapter.removeOverlay(routePolyline);
+        routePolyline = null;
+      }
+      drawingPoints = [];
+    }
+
+    // 无论是否绘制成功，结束绘制后都退出绘图模式
+    isDrawingMode = false;
+    const btn = document.getElementById("freehandBtn");
+    btn.textContent = "自由手绘";
+    btn.style.background = "";
+    mapAdapter.setCursor('default');
+    // 重新启用地图拖动
+    mapAdapter.enableDragging();
+  };
+
+  mapContainer.addEventListener('mouseup', function() {
+    if (isDrawingMode && isDrawing) {
+      isDrawing = false;
+      finishDrawing();
+    }
+  });
+
+  // 监听容器的右键事件，这样即使在路径线上右击也能成功识别
+  mapContainer.addEventListener('contextmenu', function(e) {
+    if (isDrawingMode) {
+      e.preventDefault(); // 防止弹出浏览器默认菜单
+      if (isDrawing) {
+        isDrawing = false;
+        console.log('结束绘制，点数:', drawingPoints.length);
+        finishDrawing();
+      }
+    }
+  });
+}
+
+// 简化路径（Douglas-Peucker算法简化版）
+function simplifyPath(points, tolerance) {
+  if (points.length <= 2) return points;
+  
+  const result = [points[0]];
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const next = points[i + 1];
+    
+    // 计算点到线段的距离
+    const dist = pointToLineDistance(curr, prev, next);
+    if (dist > tolerance) {
+      result.push(curr);
+    }
   }
+  result.push(points[points.length - 1]);
+  return result;
+}
+
+// 计算点到线段的距离
+function pointToLineDistance(point, lineStart, lineEnd) {
+  const [x, y] = point;
+  const [x1, y1] = lineStart;
+  const [x2, y2] = lineEnd;
+  
+  const A = x - x1;
+  const B = y - y1;
+  const C = x2 - x1;
+  const D = y2 - y1;
+  
+  const dot = A * C + B * D;
+  const lenSq = C * C + D * D;
+  
+  if (lenSq === 0) {
+    return Math.sqrt(A * A + B * B);
+  }
+  
+  const param = dot / lenSq;
+  let xx, yy;
+  
+  if (param < 0) {
+    xx = x1;
+    yy = y1;
+  } else if (param > 1) {
+    xx = x2;
+    yy = y2;
+  } else {
+    xx = x1 + param * C;
+    yy = y1 + param * D;
+  }
+  
+  const dx = x - xx;
+  const dy = y - yy;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+// 切换绘图模式
+function toggleDrawingMode() {
+  const btn = document.getElementById("freehandBtn");
+
+  if (!mapAdapter) {
+    updateMessage("地图源尚未加载完成，请先检查地图 Key", true);
+    return;
+  }
+  
+  if (isDrawingMode) {
+    // 退出绘图模式
+    isDrawingMode = false;
+    isDrawing = false;
+    btn.textContent = "自由手绘";
+    btn.style.background = "";
+    mapAdapter.setCursor('default');
+    // 恢复地图拖动
+    mapAdapter.enableDragging();
+    updateMessage("已退出手绘模式");
+  } else {
+    // 进入绘图模式
+    // 先清除旧路线
+    if (routePolyline) {
+      mapAdapter.removeOverlay(routePolyline);
+      routePolyline = null;
+    }
+    closePolylineEditor();
+    routePoints = [];
+    drawingPoints = [];
+    
+    isDrawingMode = true;
+    btn.textContent = "退出手绘";
+    btn.style.background = CONFIG.COLORS.TRAJECTORY;
+    mapAdapter.setCursor('crosshair');
+    // 禁用地图拖动，避免干扰绘图
+    mapAdapter.disableDragging();
+    
+    updateMessage("自由手绘模式：按住鼠标左键拖动绘制轨迹，松开结束");
+    console.log('进入绘图模式');
+  }
+}
+
+// 清除轨迹
+function clearRoute() {
+  if (!mapAdapter) {
+    routePoints = [];
+    updateDistanceInfo();
+    updateMessage("轨迹已清除");
+    return;
+  }
+
+  if (routePolyline) {
+    mapAdapter.removeOverlay(routePolyline);
+    routePolyline = null;
+  }
+  closePolylineEditor();
   routePoints = [];
   updateMessage("轨迹已清除");
   updateDistanceInfo();
-});
-
-function toggleFreehandMode() {
-  isFreehandMode = !isFreehandMode;
-  const btn = document.getElementById("freehandBtn");
-  
-  if (isFreehandMode) {
-    btn.style.background = CONFIG.COLORS.TRAJECTORY;
-    btn.textContent = "正在退出手绘...";
-    map.dragging.disable();
-    map.getContainer().style.cursor = "crosshair";
-    updateMessage("自由手绘模式：在地图上按住鼠标左键并拖动进行绘画");
-  } else {
-    btn.style.background = "";
-    btn.textContent = "自由手绘";
-    map.dragging.enable();
-    map.getContainer().style.cursor = "";
-    updateMessage("已退出手绘模式");
-  }
 }
 
-function startFreehandDrawing(e) {
-  if (!isFreehandMode) return;
-  isDrawing = true;
-  
-  if (freehandLayer) {
-    map.removeLayer(freehandLayer);
-  }
-
-  freehandLayer = L.polyline([e.latlng], {
-    color: CONFIG.COLORS.TRAJECTORY,
-    weight: 3
-  }).addTo(map);
-}
-
-function updateFreehandDrawing(e) {
-  if (!isFreehandMode || !isDrawing || !freehandLayer) return;
-  freehandLayer.addLatLng(e.latlng);
-}
-
-function endFreehandDrawing() {
-  if (!isFreehandMode || !isDrawing) return;
-  isDrawing = false;
-
-  if (freehandLayer) {
-    freehandLayer.pm.enable();
-    syncRouteFromMap();
-  }
-
-  isFreehandMode = false;
-  const btn = document.getElementById("freehandBtn");
-  btn.style.background = "";
-  btn.textContent = "自由手绘";
-  map.dragging.enable();
-  map.getContainer().style.cursor = "";
-}
-
-document.getElementById("freehandBtn").addEventListener("click", toggleFreehandMode);
-map.on("mousedown", startFreehandDrawing);
-map.on("mousemove", updateFreehandDrawing);
-map.on("mouseup", endFreehandDrawing);
-
-freehandLayer?.on("pm:edit", syncRouteFromMap);
-freehandLayer?.on("pm:dragend", syncRouteFromMap);
-
+// 日期转本地输入值
 function dateToLocalInputValue(d) {
   const tzOffset = d.getTimezoneOffset();
   const local = new Date(d.getTime() - tzOffset * 60000);
   return local.toISOString().slice(0, 16);
 }
 
+// 重建导出时间列表
 function rebuildExportTimes() {
   const container = document.getElementById("exportTimes");
   const exportInput = document.getElementById("exportCount");
@@ -377,6 +926,7 @@ function rebuildExportTimes() {
   }
 }
 
+// 获取活动参数
 function getActivityParams() {
   const hrRest = parseInt(document.getElementById("hrRest").value, 10) || CONFIG.HEART_RATE.REST_DEFAULT;
   const hrMax = parseInt(document.getElementById("hrMax").value, 10) || CONFIG.HEART_RATE.MAX_DEFAULT;
@@ -387,9 +937,10 @@ function getActivityParams() {
   return { hrRest, hrMax, lapCount };
 }
 
+// 生成FIT文件
 async function generateFit() {
   if (routePoints.length < 2) {
-    updateMessage("请至少在地图上选择两个点形成轨迹", true);
+    updateMessage("请至少在地图上绘制两个点形成轨迹", true);
     return;
   }
 
@@ -470,6 +1021,7 @@ async function generateFit() {
   }
 }
 
+// 渲染预览图表
 function renderPreviewCharts(preview) {
   if (!preview || !Array.isArray(preview.samples) || preview.samples.length === 0) {
     updateMessage("预览数据为空", true);
@@ -558,6 +1110,7 @@ function renderPreviewCharts(preview) {
   });
 }
 
+// 更新实时信息
 function updateLiveInfo(sample) {
   const el = document.getElementById("liveInfo");
   if (!el || !sample) return;
@@ -573,9 +1126,10 @@ function updateLiveInfo(sample) {
   el.textContent = `时间 ${min}:${sec.toString().padStart(2, "0")}  配速 ${paceStr}  心率 ${hr} bpm`;
 }
 
+// 开始预览回放
 function startPreviewPlayback() {
   const samples = previewData?.samples || [];
-  if (!samples.length) return;
+  if (!samples.length || !mapAdapter) return;
 
   previewIndex = 0;
 
@@ -591,16 +1145,22 @@ function startPreviewPlayback() {
     }
     const s = samples[previewIndex];
     if (previewMarker && s.lat != null && s.lng != null) {
-      previewMarker.setLatLng([s.lat, s.lng]);
+      mapAdapter.movePreviewMarker(previewMarker, mapAdapter.point(s.lng, s.lat));
     }
     updateLiveInfo(s);
     previewIndex += 1;
   }, CONFIG.PREVIEW.STEP_MS);
 }
 
+// 预览活动
 async function previewActivity() {
+  if (!mapAdapter) {
+    updateMessage("地图源尚未加载完成，请先检查地图 Key", true);
+    return;
+  }
+
   if (routePoints.length < 2) {
-    updateMessage("请至少在地图上选择两个点形成轨迹", true);
+    updateMessage("请至少在地图上绘制两个点形成轨迹", true);
     return;
   }
 
@@ -672,16 +1232,13 @@ async function previewActivity() {
       previewTimer = null;
     }
     if (previewMarker) {
-      map.removeLayer(previewMarker);
+      mapAdapter.removeOverlay(previewMarker);
       previewMarker = null;
     }
     const samples = previewData.samples || [];
     if (samples.length > 0) {
       const first = samples[0];
-      previewMarker = L.circleMarker([first.lat, first.lng], {
-        radius: CONFIG.PREVIEW.MARKER_RADIUS,
-        color: CONFIG.PREVIEW.MARKER_COLOR
-      }).addTo(map);
+      previewMarker = mapAdapter.createPreviewMarker(mapAdapter.point(first.lng, first.lat));
       startPreviewPlayback();
     }
   } catch (e) {
@@ -690,10 +1247,24 @@ async function previewActivity() {
   }
 }
 
+// 绑定事件
+document.getElementById("clearRoute").addEventListener("click", clearRoute);
+document.getElementById("freehandBtn").addEventListener("click", toggleDrawingMode);
 document.getElementById("generateFit").addEventListener("click", generateFit);
 document.getElementById("previewBtn").addEventListener("click", previewActivity);
 document.getElementById("lapCount").addEventListener("input", updateDistanceInfo);
 document.getElementById("exportCount").addEventListener("input", rebuildExportTimes);
+document.getElementById("mapProvider").addEventListener("change", (e) => {
+  initMap(e.target.value);
+});
 
-updateDistanceInfo();
-rebuildExportTimes();
+// 初始化
+async function bootstrapApp() {
+  initSearch();
+  updateDistanceInfo();
+  rebuildExportTimes();
+  await loadMapRuntimeConfig();
+  initMap(activeProvider);
+}
+
+bootstrapApp();
