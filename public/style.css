@@ -523,35 +523,6 @@ body {
   height: 100%;
 }
 
-.leaflet-container {
-  background: #0f172a;
-}
-
-.leaflet-bar a {
-  background-color: #1e293b;
-  border-color: #334155;
-  color: #94a3b8;
-}
-
-.leaflet-bar a:hover {
-  background-color: #334155;
-  color: #f1f5f9;
-}
-
-.pm-toolbar button,
-.pm-toolbar input {
-  background-color: #1e293b;
-  border-color: #334155;
-  color: #94a3b8;
-}
-
-.pm-toolbar button:hover,
-.pm-toolbar button.pm-active {
-  background-color: #3b82f6;
-  color: #ffffff;
-  border-color: #3b82f6;
-}
-
 @media (max-width: 1024px) {
   .sidebar {
     width: 340px;
@@ -807,18 +778,4 @@ body {
     background: #e2e8f0;
   }
 
-  .leaflet-container {
-    background: #f8fafc;
-  }
-
-  .leaflet-bar a {
-    background-color: #ffffff;
-    border-color: #cbd5e1;
-    color: #64748b;
-  }
-
-  .leaflet-bar a:hover {
-    background-color: #e2e8f0;
-    color: #1e293b;
-  }
 }

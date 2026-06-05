@@ -11,7 +11,8 @@
   "bin": "server.js",
   "pkg": {
     "assets": [
-      "public/**/*"
+      "public/**/*",
+      "build-map-config.json"
     ],
     "targets": [
       "node18-win-x64"

@@ -9,3 +9,4 @@ dist
 .history
 server_bundled.cjs
 build/
+build-map-config.json

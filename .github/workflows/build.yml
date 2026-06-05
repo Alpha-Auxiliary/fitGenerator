@@ -1,10 +1,9 @@
-name: Build and Release EXE
+name: Build and Distribute EXE
 
 on:
   push:
     branches:
-      - main
-      - master
+      - '**'
     tags:
       - 'v*'
   workflow_dispatch:
@@ -15,7 +14,7 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -24,42 +23,77 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 18
-          cache: 'npm'
+          cache: npm
 
       - name: Install dependencies
         run: npm install
 
+      - name: Generate bundled map config
+        shell: pwsh
+        env:
+          MAP_DEFAULT_PROVIDER: ${{ vars.MAP_DEFAULT_PROVIDER || 'google' }}
+          BAIDU_MAP_AK: ${{ secrets.BAIDU_MAP_AK }}
+          AMAP_MAP_KEY: ${{ secrets.AMAP_MAP_KEY }}
+          AMAP_SECURITY_JS_CODE: ${{ secrets.AMAP_SECURITY_JS_CODE }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+        run: |
+          $config = @{
+            defaultProvider = $env:MAP_DEFAULT_PROVIDER
+            providers = @{
+              baidu = @{ ak = $env:BAIDU_MAP_AK }
+              amap = @{
+                key = $env:AMAP_MAP_KEY
+                securityJsCode = $env:AMAP_SECURITY_JS_CODE
+              }
+              google = @{ apiKey = $env:GOOGLE_MAPS_API_KEY }
+            }
+          }
+          $config | ConvertTo-Json -Depth 5 | Set-Content -Path build-map-config.json -Encoding UTF8
+
       - name: Build EXE
         shell: pwsh
-        run: |
-          npm run build
+        run: npm run build
 
       - name: Verify build
         shell: pwsh
         run: |
           if (Test-Path dist/fit-tool.exe) {
-            Write-Host "Success: fit-tool.exe found!"
+            Write-Host "Success: fit-tool.exe found."
           } else {
-            Write-Error "Error: fit-tool.exe NOT found in dist/ directory"
-            exit -1
+            Write-Error "Error: fit-tool.exe was not found in dist."
+            exit 1
           }
 
+      - name: Prepare artifact name
+        shell: pwsh
+        run: |
+          $safeRef = "${{ github.ref_name }}" -replace '[^A-Za-z0-9._-]', '-'
+          "ARTIFACT_REF=$safeRef" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fit-tool-${{ env.ARTIFACT_REF }}-${{ github.sha }}
+          path: dist/fit-tool.exe
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Create or Update Release
-        # 只要是 push 到主分支或推标签，都进行发布
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          # 使用 latest 作为通用标签，或使用具体的 v* 标签
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
           name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Latest Stable Build' }}
           body: |
-            ### 🚀 自动构建发布
+            ### 自动构建发布
+
             这是本项目的最新稳定生成版本。
-            - **分支**: ${{ github.ref_name }}
+
+            - **分支/标签**: ${{ github.ref_name }}
             - **提交**: ${{ github.sha }}
-            - **备注**: 下载下方的 `fit-tool.exe` 即可直接使用。
+            - **说明**: 下载下方的 `fit-tool.exe` 即可直接使用。
           files: dist/fit-tool.exe
-          prerelease: false # 【关键修改：设为正式发布】
-          make_latest: true # 设为最新版本
+          prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
