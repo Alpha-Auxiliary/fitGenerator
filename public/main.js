@@ -907,13 +907,13 @@ function rebuildExportTimes() {
     paceMinInput.type = "number";
     paceMinInput.className = "export-pace-min";
     paceMinInput.min = "0";
-    paceMinInput.step = "0.1";
+    paceMinInput.step = "1";
     paceMinInput.value = String(CONFIG.PACE.DEFAULT_MIN);
     const paceMinField = document.createElement("label");
     paceMinField.className = "export-pace-field";
     const paceMinHint = document.createElement("span");
     paceMinHint.className = "export-pace-label";
-    paceMinHint.textContent = "\u914d\u901f\u5206\u949f";
+    paceMinHint.textContent = "\u914d\u901f\u5206";
     paceMinField.appendChild(paceMinHint);
     paceMinField.appendChild(paceMinInput);
 
@@ -938,6 +938,20 @@ function rebuildExportTimes() {
     row.appendChild(paceSecField);
     container.appendChild(row);
   }
+}
+
+// 读取配速参数
+function readPaceSeconds(minInput, secInput) {
+  const minText = minInput?.value?.trim() || "";
+  const secText = secInput?.value?.trim() || "";
+  const paceMin = minText === "" ? 0 : Number(minText);
+  const paceSec = secText === "" ? 0 : Number(secText);
+
+  if (!Number.isInteger(paceMin) || paceMin < 0) return null;
+  if (!Number.isFinite(paceSec) || paceSec < 0 || paceSec > 59.9) return null;
+
+  const totalSeconds = paceMin * 60 + paceSec;
+  return totalSeconds > 0 ? totalSeconds : null;
 }
 
 // 获取活动参数
@@ -987,10 +1001,8 @@ async function generateFit() {
       const paceMinInput = paceMinInputs[i];
       const paceSecInput = paceSecInputs[i];
       if (paceMinInput && paceSecInput) {
-        const pm = parseFloat(paceMinInput.value);
-        const ps = parseFloat(paceSecInput.value);
-        const sec = (Number.isFinite(pm) ? pm : 0) * 60 + (Number.isFinite(ps) ? ps : 0);
-        if (!sec || sec <= 0) {
+        const sec = readPaceSeconds(paceMinInput, paceSecInput);
+        if (!sec) {
           updateMessage(`第 ${i + 1} 份的配速无效`, true);
           return;
         }
@@ -1201,10 +1213,8 @@ async function previewActivity() {
 
   const firstPaceMinInput = paceMinInputs[0];
   const firstPaceSecInput = paceSecInputs[0];
-  const pm = parseFloat(firstPaceMinInput.value);
-  const ps = parseFloat(firstPaceSecInput.value);
-  const paceSecondsPerKm = (Number.isFinite(pm) ? pm : 0) * 60 + (Number.isFinite(ps) ? ps : 0);
-  if (!paceSecondsPerKm || paceSecondsPerKm <= 0) {
+  const paceSecondsPerKm = readPaceSeconds(firstPaceMinInput, firstPaceSecInput);
+  if (!paceSecondsPerKm) {
     updateMessage("预览使用的配速无效", true);
     return;
   }
