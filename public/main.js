@@ -903,54 +903,35 @@ function rebuildExportTimes() {
     const d = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
     timeInput.value = dateToLocalInputValue(d);
 
-    const paceMinInput = document.createElement("input");
-    paceMinInput.type = "number";
-    paceMinInput.className = "export-pace-min";
-    paceMinInput.min = "0";
-    paceMinInput.step = "1";
-    paceMinInput.value = String(CONFIG.PACE.DEFAULT_MIN);
-    const paceMinField = document.createElement("label");
-    paceMinField.className = "export-pace-field";
-    const paceMinHint = document.createElement("span");
-    paceMinHint.className = "export-pace-label";
-    paceMinHint.textContent = "\u914d\u901f\u5206";
-    paceMinField.appendChild(paceMinHint);
-    paceMinField.appendChild(paceMinInput);
-
-    const paceSecInput = document.createElement("input");
-    paceSecInput.type = "number";
-    paceSecInput.className = "export-pace-sec";
-    paceSecInput.min = "0";
-    paceSecInput.max = "59.9";
-    paceSecInput.step = "0.1";
-    paceSecInput.value = String(CONFIG.PACE.DEFAULT_SEC);
-    const paceSecField = document.createElement("label");
-    paceSecField.className = "export-pace-field";
-    const paceSecHint = document.createElement("span");
-    paceSecHint.className = "export-pace-label";
-    paceSecHint.textContent = "\u914d\u901f\u79d2";
-    paceSecField.appendChild(paceSecHint);
-    paceSecField.appendChild(paceSecInput);
+    const paceInput = document.createElement("input");
+    paceInput.type = "number";
+    paceInput.className = "export-pace-input";
+    paceInput.min = "0.1";
+    paceInput.step = "0.01";
+    paceInput.value = String(CONFIG.PACE.DEFAULT_MIN + CONFIG.PACE.DEFAULT_SEC / 60);
+    const paceField = document.createElement("label");
+    paceField.className = "export-pace-field";
+    const paceHint = document.createElement("span");
+    paceHint.className = "export-pace-label";
+    paceHint.textContent = "\u914d\u901f";
+    paceField.appendChild(paceHint);
+    paceField.appendChild(paceInput);
 
     row.appendChild(label);
     row.appendChild(timeInput);
-    row.appendChild(paceMinField);
-    row.appendChild(paceSecField);
+    row.appendChild(paceField);
     container.appendChild(row);
   }
 }
 
 // 读取配速参数
-function readPaceSeconds(minInput, secInput) {
-  const minText = minInput?.value?.trim() || "";
-  const secText = secInput?.value?.trim() || "";
-  const paceMin = minText === "" ? 0 : Number(minText);
-  const paceSec = secText === "" ? 0 : Number(secText);
+function readPaceSeconds(paceInput) {
+  const paceText = paceInput?.value?.trim() || "";
+  const paceMinutesPerKm = paceText === "" ? 0 : Number(paceText);
 
-  if (!Number.isInteger(paceMin) || paceMin < 0) return null;
-  if (!Number.isFinite(paceSec) || paceSec < 0 || paceSec > 59.9) return null;
+  if (!Number.isFinite(paceMinutesPerKm) || paceMinutesPerKm <= 0) return null;
 
-  const totalSeconds = paceMin * 60 + paceSec;
+  const totalSeconds = paceMinutesPerKm * 60;
   return totalSeconds > 0 ? totalSeconds : null;
 }
 
@@ -980,8 +961,7 @@ async function generateFit() {
 
   const exportTimesContainer = document.getElementById("exportTimes");
   const timeInputs = Array.from(exportTimesContainer.querySelectorAll(".export-time-input"));
-  const paceMinInputs = Array.from(exportTimesContainer.querySelectorAll(".export-pace-min"));
-  const paceSecInputs = Array.from(exportTimesContainer.querySelectorAll(".export-pace-sec"));
+  const paceInputs = Array.from(exportTimesContainer.querySelectorAll(".export-pace-input"));
 
   try {
     for (let i = 0; i < exportCount; i++) {
@@ -998,10 +978,9 @@ async function generateFit() {
         return;
       }
 
-      const paceMinInput = paceMinInputs[i];
-      const paceSecInput = paceSecInputs[i];
-      if (paceMinInput && paceSecInput) {
-        const sec = readPaceSeconds(paceMinInput, paceSecInput);
+      const paceInput = paceInputs[i];
+      if (paceInput) {
+        const sec = readPaceSeconds(paceInput);
         if (!sec) {
           updateMessage(`第 ${i + 1} 份的配速无效`, true);
           return;
@@ -1192,10 +1171,9 @@ async function previewActivity() {
 
   const exportTimesContainer = document.getElementById("exportTimes");
   const timeInputs = Array.from(exportTimesContainer.querySelectorAll(".export-time-input"));
-  const paceMinInputs = Array.from(exportTimesContainer.querySelectorAll(".export-pace-min"));
-  const paceSecInputs = Array.from(exportTimesContainer.querySelectorAll(".export-pace-sec"));
+  const paceInputs = Array.from(exportTimesContainer.querySelectorAll(".export-pace-input"));
 
-  if (!timeInputs.length || !paceMinInputs.length || !paceSecInputs.length) {
+  if (!timeInputs.length || !paceInputs.length) {
     updateMessage("请先在导出列表中设置至少一份的时间和配速", true);
     return;
   }
@@ -1211,9 +1189,8 @@ async function previewActivity() {
     return;
   }
 
-  const firstPaceMinInput = paceMinInputs[0];
-  const firstPaceSecInput = paceSecInputs[0];
-  const paceSecondsPerKm = readPaceSeconds(firstPaceMinInput, firstPaceSecInput);
+  const firstPaceInput = paceInputs[0];
+  const paceSecondsPerKm = readPaceSeconds(firstPaceInput);
   if (!paceSecondsPerKm) {
     updateMessage("预览使用的配速无效", true);
     return;
