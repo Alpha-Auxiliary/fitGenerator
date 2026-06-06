@@ -293,17 +293,32 @@ body {
   display: grid;
   grid-template-columns: auto 1fr 55px 55px;
   gap: 6px;
-  align-items: center;
+  align-items: end;
   padding: 8px 10px;
   background: rgba(0, 0, 0, 0.15);
   border-radius: 8px;
 }
 
-.export-time-row span {
+.export-time-row > span {
   font-size: 12px;
   font-weight: 500;
   color: #94a3b8;
   white-space: nowrap;
+  align-self: center;
+}
+
+.export-pace-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.export-pace-label {
+  font-size: 10px;
+  line-height: 1;
+  color: #94a3b8;
+  text-align: center;
 }
 
 .export-time-row input[type="datetime-local"],
@@ -559,7 +574,7 @@ body {
     gap: 6px;
   }
 
-  .export-time-row span {
+  .export-time-row > span {
     grid-column: 1 / -1;
     text-align: center;
     padding-bottom: 4px;

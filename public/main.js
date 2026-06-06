@@ -909,6 +909,13 @@ function rebuildExportTimes() {
     paceMinInput.min = "0";
     paceMinInput.step = "0.1";
     paceMinInput.value = String(CONFIG.PACE.DEFAULT_MIN);
+    const paceMinField = document.createElement("label");
+    paceMinField.className = "export-pace-field";
+    const paceMinHint = document.createElement("span");
+    paceMinHint.className = "export-pace-label";
+    paceMinHint.textContent = "\u914d\u901f\u5206\u949f";
+    paceMinField.appendChild(paceMinHint);
+    paceMinField.appendChild(paceMinInput);
 
     const paceSecInput = document.createElement("input");
     paceSecInput.type = "number";
@@ -917,11 +924,18 @@ function rebuildExportTimes() {
     paceSecInput.max = "59.9";
     paceSecInput.step = "0.1";
     paceSecInput.value = String(CONFIG.PACE.DEFAULT_SEC);
+    const paceSecField = document.createElement("label");
+    paceSecField.className = "export-pace-field";
+    const paceSecHint = document.createElement("span");
+    paceSecHint.className = "export-pace-label";
+    paceSecHint.textContent = "\u914d\u901f\u79d2";
+    paceSecField.appendChild(paceSecHint);
+    paceSecField.appendChild(paceSecInput);
 
     row.appendChild(label);
     row.appendChild(timeInput);
-    row.appendChild(paceMinInput);
-    row.appendChild(paceSecInput);
+    row.appendChild(paceMinField);
+    row.appendChild(paceSecField);
     container.appendChild(row);
   }
 }
