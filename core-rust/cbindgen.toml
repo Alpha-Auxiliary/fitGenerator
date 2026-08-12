@@ -1,0 +1,24 @@
+language = "C"
+include_guard = "FIT_GENERATOR_CORE_H"
+autogen_warning = "/* Generated from the Rust C ABI. Keep synchronized with src/ffi.rs. */"
+documentation = true
+cpp_compat = true
+usize_is_size_t = true
+sys_includes = ["stddef.h", "stdint.h"]
+
+[parse]
+parse_deps = false
+
+[export]
+include = [
+    "FgResult",
+    "fg_preview",
+    "fg_generate_fit",
+    "fg_result_data",
+    "fg_result_length",
+    "fg_result_code",
+    "fg_result_error",
+    "fg_result_free",
+    "fg_core_api_version",
+]
+item_types = ["opaque", "functions"]

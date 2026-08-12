@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "wgs84Gcj02RoundTrips": [
+    {
+      "name": "beijing",
+      "latitude": 39.9042,
+      "longitude": 116.4074
+    },
+    {
+      "name": "shanghai",
+      "latitude": 31.2304,
+      "longitude": 121.4737
+    }
+  ],
+  "gcj02Bd09RoundTrips": [
+    {
+      "name": "beijing",
+      "latitude": 39.910226,
+      "longitude": 116.403714
+    },
+    {
+      "name": "shanghai",
+      "latitude": 31.228457,
+      "longitude": 121.478223
+    }
+  ],
+  "outsideChina": [
+    {
+      "name": "london",
+      "latitude": 51.5074,
+      "longitude": -0.1278
+    },
+    {
+      "name": "sydney",
+      "latitude": -33.8688,
+      "longitude": 151.2093
+    }
+  ]
+}

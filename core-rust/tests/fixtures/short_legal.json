@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "startTimeUtc": "2026-07-27T08:00:00Z",
+  "points": [
+    { "lat": 0.0, "lng": 0.0 },
+    { "lat": 0.0, "lng": 0.000001 }
+  ],
+  "paceSecondsPerKm": 3600.0,
+  "hrRest": 120,
+  "hrMax": 220,
+  "lapCount": 1,
+  "variantIndex": 1,
+  "seed": 1,
+  "routeMode": "close_if_needed"
+}

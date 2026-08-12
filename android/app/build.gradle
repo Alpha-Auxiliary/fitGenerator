@@ -1,0 +1,139 @@
+plugins {
+    id "com.android.application"
+    id "org.jetbrains.kotlin.android"
+    id "org.jetbrains.kotlin.plugin.compose"
+    id "org.jetbrains.kotlin.plugin.serialization"
+}
+
+def releaseSigningInputs = [
+    keystorePath: providers.environmentVariable("ANDROID_KEYSTORE_PATH").orNull,
+    keystorePassword: providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD").orNull,
+    keyAlias: providers.environmentVariable("ANDROID_KEY_ALIAS").orNull,
+    keyPassword: providers.environmentVariable("ANDROID_KEY_PASSWORD").orNull,
+]
+def hasReleaseSigningInputs = releaseSigningInputs.values().every { value ->
+    value != null && !value.trim().isEmpty()
+}
+
+if (!hasReleaseSigningInputs) {
+    logger.lifecycle(
+        "Android release signing inputs are incomplete; the release variant remains unsigned.",
+    )
+}
+def releaseKeystoreFile = hasReleaseSigningInputs
+    ? file(releaseSigningInputs.keystorePath)
+    : null
+
+android {
+    namespace "com.alphaauxiliary.fitgenerator"
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.alphaauxiliary.fitgenerator"
+        minSdk 23
+        targetSdk 35
+        versionCode 1
+        versionName "1.0.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        ndk { abiFilters "arm64-v8a", "x86_64" }
+    }
+
+    buildFeatures {
+        buildConfig true
+        compose true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = "17" }
+
+    signingConfigs {
+        if (hasReleaseSigningInputs) {
+            release {
+                storeFile releaseKeystoreFile
+                storePassword releaseSigningInputs.keystorePassword
+                keyAlias releaseSigningInputs.keyAlias
+                keyPassword releaseSigningInputs.keyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (hasReleaseSigningInputs) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
+
+def requiredReleaseNativeLibraries = [
+    file("src/main/jniLibs/arm64-v8a/libfit_generator_core.so"),
+    file("src/main/jniLibs/x86_64/libfit_generator_core.so"),
+]
+def validateReleaseKeystore = tasks.register("validateReleaseKeystore") {
+    group = "verification"
+    description = "Checks that the configured Android release keystore is readable."
+    onlyIf { hasReleaseSigningInputs }
+
+    doLast {
+        if (!releaseKeystoreFile.isFile() || !releaseKeystoreFile.canRead()) {
+            throw new GradleException(
+                "ANDROID_KEYSTORE_PATH must point to a readable release keystore file.",
+            )
+        }
+    }
+}
+def verifyReleaseNativeLibraries = tasks.register("verifyReleaseNativeLibraries") {
+    group = "verification"
+    description = "Checks that both required Rust JNI libraries exist before a release build."
+
+    doLast {
+        def missingLibraries = requiredReleaseNativeLibraries.findAll { library ->
+            !library.isFile() || library.length() == 0L
+        }
+        if (!missingLibraries.isEmpty()) {
+            def relativePaths = missingLibraries.collect { library ->
+                project.relativePath(library)
+            }.join(", ")
+            throw new GradleException(
+                "Missing Android Rust JNI release libraries: ${relativePaths}. " +
+                    "Build them first with scripts/build-rust-android.sh from the repository root.",
+            )
+        }
+    }
+}
+
+tasks.matching { task -> task.name == "mergeReleaseNativeLibs" }.configureEach {
+    dependsOn validateReleaseKeystore, verifyReleaseNativeLibraries
+}
+
+dependencies {
+    implementation platform("androidx.compose:compose-bom:2026.06.00")
+    androidTestImplementation platform("androidx.compose:compose-bom:2026.06.00")
+
+    implementation "androidx.activity:activity-compose:1.12.4"
+    implementation "androidx.compose.material3:material3"
+    implementation "androidx.compose.ui:ui"
+    implementation "androidx.compose.ui:ui-tooling-preview"
+    implementation "androidx.lifecycle:lifecycle-runtime-compose:2.9.2"
+    implementation "androidx.lifecycle:lifecycle-viewmodel-compose:2.9.2"
+    implementation "androidx.datastore:datastore-preferences:1.1.7"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2"
+    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0"
+    implementation "org.maplibre.gl:android-sdk:13.2.0"
+
+    testImplementation "junit:junit:4.13.2"
+    testImplementation "io.mockk:mockk:1.14.5"
+    testImplementation "app.cash.turbine:turbine:1.2.1"
+    testImplementation "org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2"
+
+    androidTestImplementation "androidx.test.ext:junit:1.3.0"
+    androidTestImplementation "androidx.test.espresso:espresso-core:3.7.0"
+    androidTestImplementation "androidx.compose.ui:ui-test-junit4"
+    debugImplementation "androidx.compose.ui:ui-tooling"
+    debugImplementation "androidx.compose.ui:ui-test-manifest"
+}
