@@ -225,7 +225,7 @@ fn decoded_messages_have_canonical_data_order_counts_and_fields() {
                 "position_long",
                 "heart_rate",
                 "distance",
-                "speed",
+                "enhanced_speed",
             ],
         );
     }
@@ -249,7 +249,12 @@ fn decoded_messages_have_canonical_data_order_counts_and_fields() {
             i64::from(sample.heart_rate_bpm)
         );
         assert_scaled_value(record, "distance", sample.distance_cm, 100.0);
-        assert_scaled_value(record, "speed", u64::from(sample.speed_mm_per_sec), 1_000.0);
+        assert_scaled_value(
+            record,
+            "enhanced_speed",
+            u64::from(sample.speed_mm_per_sec),
+            1_000.0,
+        );
     }
 
     let laps = records_by_kind(&records, MesgNum::Lap);
@@ -498,7 +503,11 @@ proptest! {
 
     #[test]
     fn generated_small_valid_requests_decode(
-        coordinates in prop::collection::vec((-89.0f64..89.0, -179.0f64..179.0), 2..8),
+        base_latitude in -80.0f64..80.0,
+        base_longitude in -170.0f64..170.0,
+        point_count in 2usize..8,
+        latitude_step in 0.000_1f64..0.01,
+        longitude_step in -0.01f64..0.01,
         lap_count in 1u16..4,
         pace in 60.0f64..3600.0,
         hr_rest in 30u8..=120,
@@ -507,10 +516,19 @@ proptest! {
         seed in any::<u64>(),
     ) {
         prop_assume!(hr_max > hr_rest);
+        let coordinates = (0..point_count)
+            .map(|index| {
+                let offset = index as f64;
+                serde_json::json!({
+                    "lat": base_latitude + offset * latitude_step,
+                    "lng": base_longitude + offset * longitude_step,
+                })
+            })
+            .collect::<Vec<_>>();
         let request = serde_json::json!({
             "schemaVersion": 1,
             "startTimeUtc": "2026-07-27T08:00:00Z",
-            "points": coordinates.into_iter().map(|(lat, lng)| serde_json::json!({"lat": lat, "lng": lng})).collect::<Vec<_>>(),
+            "points": coordinates,
             "paceSecondsPerKm": pace,
             "hrRest": hr_rest,
             "hrMax": hr_max,
