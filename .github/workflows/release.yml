@@ -319,22 +319,31 @@ jobs:
           Set-StrictMode -Version Latest
           $ErrorActionPreference = "Stop"
           $publishDirectory = "native-windows/FitGenerator.Native/bin/Release/net8.0-windows/win-x64/publish"
-          $files = @(Get-ChildItem -LiteralPath $publishDirectory -File -Force)
-          if ($files.Count -ne 1 -or $files[0].Name -cne "FitGenerator.Native.exe" -or $files[0].Length -le 0) {
+          $executables = @(Get-ChildItem -LiteralPath $publishDirectory -Filter "*.exe" -File -Force)
+          if (
+            $executables.Count -ne 1 -or
+            $executables[0].Name -cne "FitGenerator.Native.exe" -or
+            $executables[0].Length -le 0
+          ) {
             throw "Windows publish must contain exactly one nonempty FitGenerator.Native.exe."
           }
+          $adjacentDlls = @(Get-ChildItem -LiteralPath $publishDirectory -Filter "*.dll" -File -Force)
+          if ($adjacentDlls.Count -ne 0) {
+            throw "Windows portable output must not contain adjacent DLL files."
+          }
+          $executable = $executables[0]
           if ($env:RELEASE_VERSION -cnotmatch "^[0-9]+[.][0-9]+[.][0-9]+$") {
             throw "Validated Windows release version is invalid."
           }
           $expectedFileVersion = "$env:RELEASE_VERSION.0"
-          if ($files[0].VersionInfo.FileVersion -cne $expectedFileVersion) {
+          if ($executable.VersionInfo.FileVersion -cne $expectedFileVersion) {
             throw "Windows EXE file version does not match the release tag."
           }
-          & $files[0].FullName --self-test
+          & $executable.FullName --self-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $outputDirectory = New-Item -ItemType Directory -Path "release-output" -Force
           $outputPath = Join-Path $outputDirectory.FullName "fit-generator-windows-x64-UNSIGNED.exe"
-          Copy-Item -LiteralPath $files[0].FullName -Destination $outputPath
+          Copy-Item -LiteralPath $executable.FullName -Destination $outputPath
           $hash = (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($hash -cnotmatch "^[0-9a-f]{64}$") { throw "Unable to calculate Windows SHA-256." }
           "file_sha256=$hash" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
