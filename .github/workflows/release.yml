@@ -339,8 +339,12 @@ jobs:
           if ($executable.VersionInfo.FileVersion -cne $expectedFileVersion) {
             throw "Windows EXE file version does not match the release tag."
           }
-          & $executable.FullName --self-test
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $selfTest = Start-Process `
+            -FilePath $executable.FullName `
+            -ArgumentList "--self-test" `
+            -Wait `
+            -PassThru
+          if ($selfTest.ExitCode -ne 0) { exit $selfTest.ExitCode }
           $outputDirectory = New-Item -ItemType Directory -Path "release-output" -Force
           $outputPath = Join-Path $outputDirectory.FullName "fit-generator-windows-x64-UNSIGNED.exe"
           Copy-Item -LiteralPath $executable.FullName -Destination $outputPath
