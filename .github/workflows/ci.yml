@@ -70,9 +70,9 @@ jobs:
           key: "${{ runner.os }}-rust-${{ hashFiles('core-rust/Cargo.lock', 'core-rust/Cargo.toml', 'deny.toml', '.github/workflows/ci.yml') }}"
           save-if: "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}"
 
-      - name: Install cargo-deny 0.18.4
+      - name: Install cargo-deny 0.19.9
         shell: bash
-        run: cargo install cargo-deny --version 0.18.4 --locked
+        run: cargo install cargo-deny --version 0.19.9 --locked
 
       - name: Check Rust formatting
         shell: bash
