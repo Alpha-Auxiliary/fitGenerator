@@ -273,8 +273,8 @@ fn decoded_messages_have_canonical_data_order_counts_and_fields() {
                 "total_elapsed_time",
                 "total_timer_time",
                 "total_distance",
-                "avg_speed",
-                "max_speed",
+                "enhanced_avg_speed",
+                "enhanced_max_speed",
                 "avg_heart_rate",
                 "max_heart_rate",
             ],
@@ -286,13 +286,13 @@ fn decoded_messages_have_canonical_data_order_counts_and_fields() {
         assert_scaled_value(record, "total_distance", lap.distance_cm, 100.0);
         assert_scaled_value(
             record,
-            "avg_speed",
+            "enhanced_avg_speed",
             expected_average_speed(lap.distance_cm, lap.duration_ms),
             1_000.0,
         );
         assert_scaled_value(
             record,
-            "max_speed",
+            "enhanced_max_speed",
             u64::from(
                 model.samples[lap.start_sample..=lap.end_sample]
                     .iter()
@@ -334,8 +334,8 @@ fn decoded_messages_have_canonical_data_order_counts_and_fields() {
             "total_elapsed_time",
             "total_timer_time",
             "total_distance",
-            "avg_speed",
-            "max_speed",
+            "enhanced_avg_speed",
+            "enhanced_max_speed",
             "avg_heart_rate",
             "max_heart_rate",
             "first_lap_index",
@@ -361,13 +361,13 @@ fn decoded_messages_have_canonical_data_order_counts_and_fields() {
     assert_scaled_value(session[0], "total_distance", model.total_distance_cm, 100.0);
     assert_scaled_value(
         session[0],
-        "avg_speed",
+        "enhanced_avg_speed",
         expected_average_speed(model.total_distance_cm, model.total_duration_ms),
         1_000.0,
     );
     assert_scaled_value(
         session[0],
-        "max_speed",
+        "enhanced_max_speed",
         u64::from(
             model
                 .samples

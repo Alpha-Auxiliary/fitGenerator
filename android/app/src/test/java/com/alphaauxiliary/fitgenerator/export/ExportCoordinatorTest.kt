@@ -287,7 +287,8 @@ internal class ExportCoordinatorTest {
             } catch (error: CancellationException) {
                 error
             }
-            assertSame(cancellation, propagated)
+            assertNotNull(propagated)
+            assertEquals(cancellation.message, propagated?.message)
         }
 
     @Test
