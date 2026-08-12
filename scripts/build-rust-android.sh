@@ -37,7 +37,7 @@ case "$host_name" in
     *) fail "unsupported host '$host_name'; cargo-ndk supports Linux, macOS, and Windows" ;;
 esac
 
-if ! cargo_ndk_version="$(cargo ndk --version 2>/dev/null)"; then
+if ! cargo_ndk_version="$(cd "$core_dir" && cargo ndk --version 2>/dev/null)"; then
     fail "unable to query cargo-ndk version"
 fi
 readonly cargo_ndk_version

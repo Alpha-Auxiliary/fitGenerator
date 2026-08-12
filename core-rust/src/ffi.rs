@@ -47,10 +47,7 @@ impl FgResult {
 
 fn safe_c_string(message: &str) -> CString {
     let sanitized = message.replace('\0', "�");
-    match CString::new(sanitized) {
-        Ok(value) => value,
-        Err(_) => CString::default(),
-    }
+    CString::new(sanitized).unwrap_or_default()
 }
 
 fn execute(request: *const u8, length: usize, operation: CoreOperation) -> *mut FgResult {

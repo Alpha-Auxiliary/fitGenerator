@@ -648,9 +648,9 @@ fn sample_timestamp(start: u32, time_ms: u64) -> Result<u32, CoreError> {
 
 fn fit_u32(value: u64, label: &str) -> Result<u32, CoreError> {
     let converted =
-        u32::try_from(value).map_err(|_| fit_error(&format!("{label}超出 FIT 支持范围")))?;
+        u32::try_from(value).map_err(|_| fit_error(format!("{label}超出 FIT 支持范围")))?;
     if converted == u32::MAX {
-        return Err(fit_error(&format!("{label}超出 FIT 支持范围")));
+        return Err(fit_error(format!("{label}超出 FIT 支持范围")));
     }
     Ok(converted)
 }
