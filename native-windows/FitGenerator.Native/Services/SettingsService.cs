@@ -131,7 +131,7 @@ internal sealed class SettingsService : ISettingsService
             {
                 var payload = File.ReadAllBytes(_settingsPath);
                 var persisted = JsonSerializer.Deserialize<SettingsFileDto>(
-                    payload,
+                    WithoutUtf8Bom(payload),
                     SerializerOptions);
                 if (persisted is null)
                 {
@@ -186,7 +186,7 @@ internal sealed class SettingsService : ISettingsService
             {
                 var payload = File.ReadAllBytes(_lastRoutePath);
                 var persisted = JsonSerializer.Deserialize<RouteFileDto>(
-                    payload,
+                    WithoutUtf8Bom(payload),
                     SerializerOptions);
                 if (persisted is null)
                 {
@@ -520,6 +520,17 @@ internal sealed class SettingsService : ISettingsService
 
     private static bool IsFinite(double value) =>
         !double.IsNaN(value) && !double.IsInfinity(value);
+
+    private static ReadOnlySpan<byte> WithoutUtf8Bom(byte[] payload)
+    {
+        var span = payload.AsSpan();
+        return span.Length >= 3
+            && span[0] == 0xEF
+            && span[1] == 0xBB
+            && span[2] == 0xBF
+                ? span[3..]
+                : span;
+    }
 
     private static string GetDefaultStorageDirectory()
     {

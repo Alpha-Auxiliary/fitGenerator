@@ -103,7 +103,8 @@ impl FitDataWriter {
 
     pub fn with_capacity(capacity: usize) -> Result<Self, CoreError> {
         let mut data = Vec::new();
-        data.try_reserve(capacity).map_err(|_| memory_limit_error())?;
+        data.try_reserve(capacity)
+            .map_err(|_| memory_limit_error())?;
         Ok(Self { data })
     }
 

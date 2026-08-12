@@ -57,11 +57,7 @@ fn rejects_reversed_heart_rate_range() {
     request.hr_rest = 100;
     request.hr_max = 100;
 
-    assert_error(
-        request,
-        ErrorCode::InvalidInput,
-        "最大心率必须高于静息心率",
-    );
+    assert_error(request, ErrorCode::InvalidInput, "最大心率必须高于静息心率");
 }
 
 #[test]
@@ -153,32 +149,162 @@ fn rejects_validation_boundaries_with_contract_messages() {
     invalid_date.start_time_utc = "2026-02-30T08:00:00Z".to_owned();
 
     let cases = [
-        Case { name: "schema", request: schema, code: ErrorCode::UnsupportedSchema, message: "不支持的数据版本：0" },
-        Case { name: "one point", request: one_point, code: ErrorCode::InvalidInput, message: "轨迹点数量必须在 2 到 50000 之间" },
-        Case { name: "too many points", request: too_many_points, code: ErrorCode::InvalidInput, message: "轨迹点数量必须在 2 到 50000 之间" },
-        Case { name: "infinite coordinate", request: infinity, code: ErrorCode::InvalidInput, message: "轨迹坐标必须是有限数值" },
-        Case { name: "NaN coordinate", request: nan, code: ErrorCode::InvalidInput, message: "轨迹坐标必须是有限数值" },
-        Case { name: "latitude below", request: latitude_below, code: ErrorCode::InvalidInput, message: "纬度必须在 -90 到 90 之间" },
-        Case { name: "latitude above", request: latitude_above, code: ErrorCode::InvalidInput, message: "纬度必须在 -90 到 90 之间" },
-        Case { name: "longitude below", request: longitude_below, code: ErrorCode::InvalidInput, message: "经度必须在 -180 到 180 之间" },
-        Case { name: "longitude above", request: longitude_above, code: ErrorCode::InvalidInput, message: "经度必须在 -180 到 180 之间" },
-        Case { name: "expanded samples", request: expanded_samples, code: ErrorCode::ResourceLimit, message: "展开后的采样点数量不能超过 500000" },
-        Case { name: "rest below", request: rest_below, code: ErrorCode::InvalidInput, message: "静息心率必须在 30 到 120 之间" },
-        Case { name: "rest above", request: rest_above, code: ErrorCode::InvalidInput, message: "静息心率必须在 30 到 120 之间" },
-        Case { name: "max below", request: max_below, code: ErrorCode::InvalidInput, message: "最大心率必须在 100 到 220 之间" },
-        Case { name: "max above", request: max_above, code: ErrorCode::InvalidInput, message: "最大心率必须在 100 到 220 之间" },
-        Case { name: "max equals rest", request: max_equals_rest, code: ErrorCode::InvalidInput, message: "最大心率必须高于静息心率" },
-        Case { name: "max below rest", request: max_below_rest, code: ErrorCode::InvalidInput, message: "最大心率必须高于静息心率" },
-        Case { name: "pace nan", request: pace_nan, code: ErrorCode::InvalidInput, message: "配速必须在 60 到 3600 秒/公里之间" },
-        Case { name: "pace below", request: pace_below, code: ErrorCode::InvalidInput, message: "配速必须在 60 到 3600 秒/公里之间" },
-        Case { name: "pace above", request: pace_above, code: ErrorCode::InvalidInput, message: "配速必须在 60 到 3600 秒/公里之间" },
-        Case { name: "laps below", request: laps_below, code: ErrorCode::InvalidInput, message: "圈数必须在 1 到 100 之间" },
-        Case { name: "laps above", request: laps_above, code: ErrorCode::InvalidInput, message: "圈数必须在 1 到 100 之间" },
-        Case { name: "laps above before resource limit", request: too_many_points_and_laps, code: ErrorCode::InvalidInput, message: "圈数必须在 1 到 100 之间" },
-        Case { name: "variant zero", request: variant_zero, code: ErrorCode::InvalidInput, message: "变体序号必须大于 0" },
-        Case { name: "missing Z", request: no_z, code: ErrorCode::InvalidInput, message: "开始时间必须是以 Z 结尾的有效 UTC 时间" },
-        Case { name: "non-UTC offset", request: non_utc_offset, code: ErrorCode::InvalidInput, message: "开始时间必须是以 Z 结尾的有效 UTC 时间" },
-        Case { name: "invalid date", request: invalid_date, code: ErrorCode::InvalidInput, message: "开始时间必须是以 Z 结尾的有效 UTC 时间" },
+        Case {
+            name: "schema",
+            request: schema,
+            code: ErrorCode::UnsupportedSchema,
+            message: "不支持的数据版本：0",
+        },
+        Case {
+            name: "one point",
+            request: one_point,
+            code: ErrorCode::InvalidInput,
+            message: "轨迹点数量必须在 2 到 50000 之间",
+        },
+        Case {
+            name: "too many points",
+            request: too_many_points,
+            code: ErrorCode::InvalidInput,
+            message: "轨迹点数量必须在 2 到 50000 之间",
+        },
+        Case {
+            name: "infinite coordinate",
+            request: infinity,
+            code: ErrorCode::InvalidInput,
+            message: "轨迹坐标必须是有限数值",
+        },
+        Case {
+            name: "NaN coordinate",
+            request: nan,
+            code: ErrorCode::InvalidInput,
+            message: "轨迹坐标必须是有限数值",
+        },
+        Case {
+            name: "latitude below",
+            request: latitude_below,
+            code: ErrorCode::InvalidInput,
+            message: "纬度必须在 -90 到 90 之间",
+        },
+        Case {
+            name: "latitude above",
+            request: latitude_above,
+            code: ErrorCode::InvalidInput,
+            message: "纬度必须在 -90 到 90 之间",
+        },
+        Case {
+            name: "longitude below",
+            request: longitude_below,
+            code: ErrorCode::InvalidInput,
+            message: "经度必须在 -180 到 180 之间",
+        },
+        Case {
+            name: "longitude above",
+            request: longitude_above,
+            code: ErrorCode::InvalidInput,
+            message: "经度必须在 -180 到 180 之间",
+        },
+        Case {
+            name: "expanded samples",
+            request: expanded_samples,
+            code: ErrorCode::ResourceLimit,
+            message: "展开后的采样点数量不能超过 500000",
+        },
+        Case {
+            name: "rest below",
+            request: rest_below,
+            code: ErrorCode::InvalidInput,
+            message: "静息心率必须在 30 到 120 之间",
+        },
+        Case {
+            name: "rest above",
+            request: rest_above,
+            code: ErrorCode::InvalidInput,
+            message: "静息心率必须在 30 到 120 之间",
+        },
+        Case {
+            name: "max below",
+            request: max_below,
+            code: ErrorCode::InvalidInput,
+            message: "最大心率必须在 100 到 220 之间",
+        },
+        Case {
+            name: "max above",
+            request: max_above,
+            code: ErrorCode::InvalidInput,
+            message: "最大心率必须在 100 到 220 之间",
+        },
+        Case {
+            name: "max equals rest",
+            request: max_equals_rest,
+            code: ErrorCode::InvalidInput,
+            message: "最大心率必须高于静息心率",
+        },
+        Case {
+            name: "max below rest",
+            request: max_below_rest,
+            code: ErrorCode::InvalidInput,
+            message: "最大心率必须高于静息心率",
+        },
+        Case {
+            name: "pace nan",
+            request: pace_nan,
+            code: ErrorCode::InvalidInput,
+            message: "配速必须在 60 到 3600 秒/公里之间",
+        },
+        Case {
+            name: "pace below",
+            request: pace_below,
+            code: ErrorCode::InvalidInput,
+            message: "配速必须在 60 到 3600 秒/公里之间",
+        },
+        Case {
+            name: "pace above",
+            request: pace_above,
+            code: ErrorCode::InvalidInput,
+            message: "配速必须在 60 到 3600 秒/公里之间",
+        },
+        Case {
+            name: "laps below",
+            request: laps_below,
+            code: ErrorCode::InvalidInput,
+            message: "圈数必须在 1 到 100 之间",
+        },
+        Case {
+            name: "laps above",
+            request: laps_above,
+            code: ErrorCode::InvalidInput,
+            message: "圈数必须在 1 到 100 之间",
+        },
+        Case {
+            name: "laps above before resource limit",
+            request: too_many_points_and_laps,
+            code: ErrorCode::InvalidInput,
+            message: "圈数必须在 1 到 100 之间",
+        },
+        Case {
+            name: "variant zero",
+            request: variant_zero,
+            code: ErrorCode::InvalidInput,
+            message: "变体序号必须大于 0",
+        },
+        Case {
+            name: "missing Z",
+            request: no_z,
+            code: ErrorCode::InvalidInput,
+            message: "开始时间必须是以 Z 结尾的有效 UTC 时间",
+        },
+        Case {
+            name: "non-UTC offset",
+            request: non_utc_offset,
+            code: ErrorCode::InvalidInput,
+            message: "开始时间必须是以 Z 结尾的有效 UTC 时间",
+        },
+        Case {
+            name: "invalid date",
+            request: invalid_date,
+            code: ErrorCode::InvalidInput,
+            message: "开始时间必须是以 Z 结尾的有效 UTC 时间",
+        },
     ];
 
     for case in cases {

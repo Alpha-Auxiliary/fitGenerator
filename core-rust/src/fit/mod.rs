@@ -2,10 +2,10 @@ pub mod crc;
 pub mod profile;
 pub mod writer;
 
-use time::{format_description::well_known::Rfc3339, OffsetDateTime};
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 
 use crate::{
-    domain::{ActivityModel, ActivitySample, LapModel, ALGORITHM_VERSION, SCHEMA_VERSION},
+    domain::{ALGORITHM_VERSION, ActivityModel, ActivitySample, LapModel, SCHEMA_VERSION},
     error::CoreError,
     fit::{
         crc::fit_crc,
@@ -29,74 +29,298 @@ const SESSION_LOCAL: u8 = 5;
 const ACTIVITY_LOCAL: u8 = 6;
 
 const FILE_FIELDS: [FieldDef; 5] = [
-    FieldDef { number: field::file::TYPE, size: 1, base_type: base_type::ENUM },
-    FieldDef { number: field::file::MANUFACTURER, size: 2, base_type: base_type::UINT16 },
-    FieldDef { number: field::file::PRODUCT, size: 2, base_type: base_type::UINT16 },
-    FieldDef { number: field::file::SERIAL, size: 4, base_type: base_type::UINT32Z },
-    FieldDef { number: field::file::TIME_CREATED, size: 4, base_type: base_type::UINT32 },
+    FieldDef {
+        number: field::file::TYPE,
+        size: 1,
+        base_type: base_type::ENUM,
+    },
+    FieldDef {
+        number: field::file::MANUFACTURER,
+        size: 2,
+        base_type: base_type::UINT16,
+    },
+    FieldDef {
+        number: field::file::PRODUCT,
+        size: 2,
+        base_type: base_type::UINT16,
+    },
+    FieldDef {
+        number: field::file::SERIAL,
+        size: 4,
+        base_type: base_type::UINT32Z,
+    },
+    FieldDef {
+        number: field::file::TIME_CREATED,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
 ];
 const DEVICE_FIELDS: [FieldDef; 4] = [
-    FieldDef { number: field::device::TIMESTAMP, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::device::DEVICE_INDEX, size: 1, base_type: base_type::UINT8 },
-    FieldDef { number: field::device::MANUFACTURER, size: 2, base_type: base_type::UINT16 },
-    FieldDef { number: field::device::PRODUCT, size: 2, base_type: base_type::UINT16 },
+    FieldDef {
+        number: field::device::TIMESTAMP,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::device::DEVICE_INDEX,
+        size: 1,
+        base_type: base_type::UINT8,
+    },
+    FieldDef {
+        number: field::device::MANUFACTURER,
+        size: 2,
+        base_type: base_type::UINT16,
+    },
+    FieldDef {
+        number: field::device::PRODUCT,
+        size: 2,
+        base_type: base_type::UINT16,
+    },
 ];
 const EVENT_FIELDS: [FieldDef; 3] = [
-    FieldDef { number: field::event::TIMESTAMP, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::event::EVENT, size: 1, base_type: base_type::ENUM },
-    FieldDef { number: field::event::EVENT_TYPE, size: 1, base_type: base_type::ENUM },
+    FieldDef {
+        number: field::event::TIMESTAMP,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::event::EVENT,
+        size: 1,
+        base_type: base_type::ENUM,
+    },
+    FieldDef {
+        number: field::event::EVENT_TYPE,
+        size: 1,
+        base_type: base_type::ENUM,
+    },
 ];
 const RECORD_FIELDS: [FieldDef; 6] = [
-    FieldDef { number: field::record::TIMESTAMP, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::record::POSITION_LAT, size: 4, base_type: base_type::SINT32 },
-    FieldDef { number: field::record::POSITION_LONG, size: 4, base_type: base_type::SINT32 },
-    FieldDef { number: field::record::HEART_RATE, size: 1, base_type: base_type::UINT8 },
-    FieldDef { number: field::record::DISTANCE, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::record::SPEED, size: 2, base_type: base_type::UINT16 },
+    FieldDef {
+        number: field::record::TIMESTAMP,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::record::POSITION_LAT,
+        size: 4,
+        base_type: base_type::SINT32,
+    },
+    FieldDef {
+        number: field::record::POSITION_LONG,
+        size: 4,
+        base_type: base_type::SINT32,
+    },
+    FieldDef {
+        number: field::record::HEART_RATE,
+        size: 1,
+        base_type: base_type::UINT8,
+    },
+    FieldDef {
+        number: field::record::DISTANCE,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::record::SPEED,
+        size: 2,
+        base_type: base_type::UINT16,
+    },
 ];
 const LAP_FIELDS: [FieldDef; 15] = [
-    FieldDef { number: field::lap::TIMESTAMP, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::lap::EVENT, size: 1, base_type: base_type::ENUM },
-    FieldDef { number: field::lap::EVENT_TYPE, size: 1, base_type: base_type::ENUM },
-    FieldDef { number: field::lap::START_TIME, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::lap::START_POSITION_LAT, size: 4, base_type: base_type::SINT32 },
-    FieldDef { number: field::lap::START_POSITION_LONG, size: 4, base_type: base_type::SINT32 },
-    FieldDef { number: field::lap::END_POSITION_LAT, size: 4, base_type: base_type::SINT32 },
-    FieldDef { number: field::lap::END_POSITION_LONG, size: 4, base_type: base_type::SINT32 },
-    FieldDef { number: field::lap::TOTAL_ELAPSED_TIME, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::lap::TOTAL_TIMER_TIME, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::lap::TOTAL_DISTANCE, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::lap::AVG_SPEED, size: 2, base_type: base_type::UINT16 },
-    FieldDef { number: field::lap::MAX_SPEED, size: 2, base_type: base_type::UINT16 },
-    FieldDef { number: field::lap::AVG_HEART_RATE, size: 1, base_type: base_type::UINT8 },
-    FieldDef { number: field::lap::MAX_HEART_RATE, size: 1, base_type: base_type::UINT8 },
+    FieldDef {
+        number: field::lap::TIMESTAMP,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::lap::EVENT,
+        size: 1,
+        base_type: base_type::ENUM,
+    },
+    FieldDef {
+        number: field::lap::EVENT_TYPE,
+        size: 1,
+        base_type: base_type::ENUM,
+    },
+    FieldDef {
+        number: field::lap::START_TIME,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::lap::START_POSITION_LAT,
+        size: 4,
+        base_type: base_type::SINT32,
+    },
+    FieldDef {
+        number: field::lap::START_POSITION_LONG,
+        size: 4,
+        base_type: base_type::SINT32,
+    },
+    FieldDef {
+        number: field::lap::END_POSITION_LAT,
+        size: 4,
+        base_type: base_type::SINT32,
+    },
+    FieldDef {
+        number: field::lap::END_POSITION_LONG,
+        size: 4,
+        base_type: base_type::SINT32,
+    },
+    FieldDef {
+        number: field::lap::TOTAL_ELAPSED_TIME,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::lap::TOTAL_TIMER_TIME,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::lap::TOTAL_DISTANCE,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::lap::AVG_SPEED,
+        size: 2,
+        base_type: base_type::UINT16,
+    },
+    FieldDef {
+        number: field::lap::MAX_SPEED,
+        size: 2,
+        base_type: base_type::UINT16,
+    },
+    FieldDef {
+        number: field::lap::AVG_HEART_RATE,
+        size: 1,
+        base_type: base_type::UINT8,
+    },
+    FieldDef {
+        number: field::lap::MAX_HEART_RATE,
+        size: 1,
+        base_type: base_type::UINT8,
+    },
 ];
 const SESSION_FIELDS: [FieldDef; 17] = [
-    FieldDef { number: field::session::TIMESTAMP, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::session::EVENT, size: 1, base_type: base_type::ENUM },
-    FieldDef { number: field::session::EVENT_TYPE, size: 1, base_type: base_type::ENUM },
-    FieldDef { number: field::session::START_TIME, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::session::START_POSITION_LAT, size: 4, base_type: base_type::SINT32 },
-    FieldDef { number: field::session::START_POSITION_LONG, size: 4, base_type: base_type::SINT32 },
-    FieldDef { number: field::session::SPORT, size: 1, base_type: base_type::ENUM },
-    FieldDef { number: field::session::SUB_SPORT, size: 1, base_type: base_type::ENUM },
-    FieldDef { number: field::session::TOTAL_ELAPSED_TIME, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::session::TOTAL_TIMER_TIME, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::session::TOTAL_DISTANCE, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::session::AVG_SPEED, size: 2, base_type: base_type::UINT16 },
-    FieldDef { number: field::session::MAX_SPEED, size: 2, base_type: base_type::UINT16 },
-    FieldDef { number: field::session::AVG_HEART_RATE, size: 1, base_type: base_type::UINT8 },
-    FieldDef { number: field::session::MAX_HEART_RATE, size: 1, base_type: base_type::UINT8 },
-    FieldDef { number: field::session::FIRST_LAP_INDEX, size: 2, base_type: base_type::UINT16 },
-    FieldDef { number: field::session::NUM_LAPS, size: 2, base_type: base_type::UINT16 },
+    FieldDef {
+        number: field::session::TIMESTAMP,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::session::EVENT,
+        size: 1,
+        base_type: base_type::ENUM,
+    },
+    FieldDef {
+        number: field::session::EVENT_TYPE,
+        size: 1,
+        base_type: base_type::ENUM,
+    },
+    FieldDef {
+        number: field::session::START_TIME,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::session::START_POSITION_LAT,
+        size: 4,
+        base_type: base_type::SINT32,
+    },
+    FieldDef {
+        number: field::session::START_POSITION_LONG,
+        size: 4,
+        base_type: base_type::SINT32,
+    },
+    FieldDef {
+        number: field::session::SPORT,
+        size: 1,
+        base_type: base_type::ENUM,
+    },
+    FieldDef {
+        number: field::session::SUB_SPORT,
+        size: 1,
+        base_type: base_type::ENUM,
+    },
+    FieldDef {
+        number: field::session::TOTAL_ELAPSED_TIME,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::session::TOTAL_TIMER_TIME,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::session::TOTAL_DISTANCE,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::session::AVG_SPEED,
+        size: 2,
+        base_type: base_type::UINT16,
+    },
+    FieldDef {
+        number: field::session::MAX_SPEED,
+        size: 2,
+        base_type: base_type::UINT16,
+    },
+    FieldDef {
+        number: field::session::AVG_HEART_RATE,
+        size: 1,
+        base_type: base_type::UINT8,
+    },
+    FieldDef {
+        number: field::session::MAX_HEART_RATE,
+        size: 1,
+        base_type: base_type::UINT8,
+    },
+    FieldDef {
+        number: field::session::FIRST_LAP_INDEX,
+        size: 2,
+        base_type: base_type::UINT16,
+    },
+    FieldDef {
+        number: field::session::NUM_LAPS,
+        size: 2,
+        base_type: base_type::UINT16,
+    },
 ];
 const ACTIVITY_FIELDS: [FieldDef; 6] = [
-    FieldDef { number: field::activity::TIMESTAMP, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::activity::TOTAL_TIMER_TIME, size: 4, base_type: base_type::UINT32 },
-    FieldDef { number: field::activity::NUM_SESSIONS, size: 2, base_type: base_type::UINT16 },
-    FieldDef { number: field::activity::TYPE, size: 1, base_type: base_type::ENUM },
-    FieldDef { number: field::activity::EVENT, size: 1, base_type: base_type::ENUM },
-    FieldDef { number: field::activity::EVENT_TYPE, size: 1, base_type: base_type::ENUM },
+    FieldDef {
+        number: field::activity::TIMESTAMP,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::activity::TOTAL_TIMER_TIME,
+        size: 4,
+        base_type: base_type::UINT32,
+    },
+    FieldDef {
+        number: field::activity::NUM_SESSIONS,
+        size: 2,
+        base_type: base_type::UINT16,
+    },
+    FieldDef {
+        number: field::activity::TYPE,
+        size: 1,
+        base_type: base_type::ENUM,
+    },
+    FieldDef {
+        number: field::activity::EVENT,
+        size: 1,
+        base_type: base_type::ENUM,
+    },
+    FieldDef {
+        number: field::activity::EVENT_TYPE,
+        size: 1,
+        base_type: base_type::ENUM,
+    },
 ];
 
 /// Parses an activity request, builds its deterministic model, and encodes it as a FIT activity.
@@ -110,17 +334,32 @@ pub fn generate_fit(input: &[u8]) -> Result<Vec<u8>, CoreError> {
 pub fn encode_activity(model: &ActivityModel) -> Result<Vec<u8>, CoreError> {
     validate_activity_model(model)?;
     let start_fit = fit_start_timestamp(&model.start_time_utc)?;
-    let first = model.samples.first().ok_or_else(activity_model_inconsistent)?;
-    let last = model.samples.last().ok_or_else(activity_model_inconsistent)?;
-    let lap_count = u16::try_from(model.laps.len()).map_err(|_| fit_error("圈数超出 FIT 支持范围"))?;
+    let first = model
+        .samples
+        .first()
+        .ok_or_else(activity_model_inconsistent)?;
+    let last = model
+        .samples
+        .last()
+        .ok_or_else(activity_model_inconsistent)?;
+    let lap_count =
+        u16::try_from(model.laps.len()).map_err(|_| fit_error("圈数超出 FIT 支持范围"))?;
     if lap_count == u16::MAX {
         return Err(fit_error("圈数超出 FIT 支持范围"));
     }
     validate_samples(&model.samples)?;
 
-    let estimated = model.samples.len()
+    let estimated = model
+        .samples
+        .len()
         .checked_mul(20)
-        .and_then(|size| model.laps.len().checked_mul(45).and_then(|laps| size.checked_add(laps)))
+        .and_then(|size| {
+            model
+                .laps
+                .len()
+                .checked_mul(45)
+                .and_then(|laps| size.checked_add(laps))
+        })
         .and_then(|size| size.checked_add(311))
         .ok_or_else(memory_limit_error)?;
     let mut writer = FitDataWriter::with_capacity(estimated)?;
@@ -144,7 +383,9 @@ pub fn encode_activity(model: &ActivityModel) -> Result<Vec<u8>, CoreError> {
     let data_size = u32::try_from(data.len()).map_err(|_| memory_limit_error())?;
     let total_size = data.len().checked_add(16).ok_or_else(memory_limit_error)?;
     let mut output = Vec::new();
-    output.try_reserve(total_size).map_err(|_| memory_limit_error())?;
+    output
+        .try_reserve(total_size)
+        .map_err(|_| memory_limit_error())?;
     output.extend_from_slice(&[
         FIT_HEADER_SIZE,
         FIT_PROTOCOL_VERSION,
@@ -188,14 +429,22 @@ fn write_device_info(writer: &mut FitDataWriter, timestamp: u32) -> Result<(), C
     writer.push_u16_le(0)
 }
 
-fn write_event(writer: &mut FitDataWriter, timestamp: u32, event_type: u8) -> Result<(), CoreError> {
+fn write_event(
+    writer: &mut FitDataWriter,
+    timestamp: u32,
+    event_type: u8,
+) -> Result<(), CoreError> {
     writer.write_data_header(EVENT_LOCAL)?;
     writer.push_u32_le(timestamp)?;
     writer.push_u8(value::event::TIMER)?;
     writer.push_u8(event_type)
 }
 
-fn write_record(writer: &mut FitDataWriter, start: u32, sample: &ActivitySample) -> Result<(), CoreError> {
+fn write_record(
+    writer: &mut FitDataWriter,
+    start: u32,
+    sample: &ActivitySample,
+) -> Result<(), CoreError> {
     writer.write_data_header(RECORD_LOCAL)?;
     writer.push_u32_le(sample_timestamp(start, sample.time_ms)?)?;
     writer.push_i32_le(fit_position(sample.position_lat_semicircles)?)?;
@@ -272,7 +521,11 @@ fn write_session(
     writer.push_u16_le(lap_count)
 }
 
-fn write_activity(writer: &mut FitDataWriter, timestamp: u32, duration_ms: u64) -> Result<(), CoreError> {
+fn write_activity(
+    writer: &mut FitDataWriter,
+    timestamp: u32,
+    duration_ms: u64,
+) -> Result<(), CoreError> {
     writer.write_data_header(ACTIVITY_LOCAL)?;
     writer.push_u32_le(timestamp)?;
     writer.push_u32_le(fit_u32(duration_ms, "持续时间")?)?;
@@ -302,8 +555,14 @@ fn validate_activity_model(model: &ActivityModel) -> Result<(), CoreError> {
     if model.schema_version != SCHEMA_VERSION || model.algorithm_version != ALGORITHM_VERSION {
         return Err(activity_model_inconsistent());
     }
-    let first = model.samples.first().ok_or_else(activity_model_inconsistent)?;
-    let last = model.samples.last().ok_or_else(activity_model_inconsistent)?;
+    let first = model
+        .samples
+        .first()
+        .ok_or_else(activity_model_inconsistent)?;
+    let last = model
+        .samples
+        .last()
+        .ok_or_else(activity_model_inconsistent)?;
     if first.time_ms != 0
         || first.distance_cm != 0
         || model.total_duration_ms != last.time_ms
@@ -312,9 +571,11 @@ fn validate_activity_model(model: &ActivityModel) -> Result<(), CoreError> {
     {
         return Err(activity_model_inconsistent());
     }
-    if model.samples.windows(2).any(|pair| {
-        pair[0].time_ms > pair[1].time_ms || pair[0].distance_cm > pair[1].distance_cm
-    }) {
+    if model
+        .samples
+        .windows(2)
+        .any(|pair| pair[0].time_ms > pair[1].time_ms || pair[0].distance_cm > pair[1].distance_cm)
+    {
         return Err(activity_model_inconsistent());
     }
 
@@ -332,16 +593,22 @@ fn validate_activity_model(model: &ActivityModel) -> Result<(), CoreError> {
         }
         let start = &model.samples[lap.start_sample];
         let end = &model.samples[lap.end_sample];
-        let distance = end.distance_cm.checked_sub(start.distance_cm)
+        let distance = end
+            .distance_cm
+            .checked_sub(start.distance_cm)
             .ok_or_else(activity_model_inconsistent)?;
-        let duration = end.time_ms.checked_sub(start.time_ms)
+        let duration = end
+            .time_ms
+            .checked_sub(start.time_ms)
             .ok_or_else(activity_model_inconsistent)?;
         if lap.distance_cm != distance || lap.duration_ms != duration {
             return Err(activity_model_inconsistent());
         }
-        total_distance = total_distance.checked_add(lap.distance_cm)
+        total_distance = total_distance
+            .checked_add(lap.distance_cm)
             .ok_or_else(activity_model_inconsistent)?;
-        total_duration = total_duration.checked_add(lap.duration_ms)
+        total_duration = total_duration
+            .checked_add(lap.duration_ms)
             .ok_or_else(activity_model_inconsistent)?;
         previous_end = Some(lap.end_sample);
     }
@@ -358,7 +625,8 @@ fn fit_start_timestamp(value: &str) -> Result<u32, CoreError> {
     let parsed = OffsetDateTime::parse(value, &Rfc3339)
         .map_err(|_| fit_error("活动时间超出 FIT 支持范围"))?;
     let seconds = parsed.unix_timestamp();
-    let fit_seconds = seconds.checked_sub(FIT_EPOCH_UNIX_SECONDS)
+    let fit_seconds = seconds
+        .checked_sub(FIT_EPOCH_UNIX_SECONDS)
         .ok_or_else(|| fit_error("活动时间超出 FIT 支持范围"))?;
     if fit_seconds < 0 || fit_seconds >= i64::from(u32::MAX) {
         return Err(fit_error("活动时间超出 FIT 支持范围"));
@@ -367,9 +635,10 @@ fn fit_start_timestamp(value: &str) -> Result<u32, CoreError> {
 }
 
 fn sample_timestamp(start: u32, time_ms: u64) -> Result<u32, CoreError> {
-    let elapsed = u32::try_from(time_ms / 1_000)
-        .map_err(|_| fit_error("活动时间超出 FIT 支持范围"))?;
-    let timestamp = start.checked_add(elapsed)
+    let elapsed =
+        u32::try_from(time_ms / 1_000).map_err(|_| fit_error("活动时间超出 FIT 支持范围"))?;
+    let timestamp = start
+        .checked_add(elapsed)
         .ok_or_else(|| fit_error("活动时间超出 FIT 支持范围"))?;
     if timestamp == u32::MAX {
         return Err(fit_error("活动时间超出 FIT 支持范围"));
@@ -378,7 +647,8 @@ fn sample_timestamp(start: u32, time_ms: u64) -> Result<u32, CoreError> {
 }
 
 fn fit_u32(value: u64, label: &str) -> Result<u32, CoreError> {
-    let converted = u32::try_from(value).map_err(|_| fit_error(&format!("{label}超出 FIT 支持范围")))?;
+    let converted =
+        u32::try_from(value).map_err(|_| fit_error(&format!("{label}超出 FIT 支持范围")))?;
     if converted == u32::MAX {
         return Err(fit_error(&format!("{label}超出 FIT 支持范围")));
     }
@@ -411,7 +681,8 @@ fn average_speed(distance_cm: u64, duration_ms: u64) -> Result<u16, CoreError> {
     if duration_ms == 0 {
         return Err(fit_error("持续时间超出 FIT 支持范围"));
     }
-    let numerator = distance_cm.checked_mul(10_000)
+    let numerator = distance_cm
+        .checked_mul(10_000)
         .and_then(|value| value.checked_add(duration_ms / 2))
         .ok_or_else(|| fit_error("速度超出 FIT 支持范围"))?;
     let raw = numerator / duration_ms;
@@ -420,7 +691,10 @@ fn average_speed(distance_cm: u64, duration_ms: u64) -> Result<u16, CoreError> {
 }
 
 fn max_speed(samples: &[ActivitySample]) -> Result<u16, CoreError> {
-    let max = samples.iter().map(|sample| sample.speed_mm_per_sec).max()
+    let max = samples
+        .iter()
+        .map(|sample| sample.speed_mm_per_sec)
+        .max()
         .ok_or_else(|| fit_error("活动采样不能为空"))?;
     fit_speed(max)
 }
@@ -430,7 +704,8 @@ fn heart_rate_summary(samples: &[ActivitySample]) -> Result<(u8, u8), CoreError>
     let mut max = 0u8;
     for sample in samples {
         let heart_rate = fit_heart_rate(sample.heart_rate_bpm)?;
-        total = total.checked_add(u64::from(heart_rate))
+        total = total
+            .checked_add(u64::from(heart_rate))
             .ok_or_else(|| fit_error("心率超出 FIT 支持范围"))?;
         max = max.max(heart_rate);
     }
@@ -438,7 +713,10 @@ fn heart_rate_summary(samples: &[ActivitySample]) -> Result<(u8, u8), CoreError>
     if count == 0 {
         return Err(fit_error("活动采样不能为空"));
     }
-    let average = (total.checked_add(count / 2).ok_or_else(|| fit_error("心率超出 FIT 支持范围"))?) / count;
+    let average = (total
+        .checked_add(count / 2)
+        .ok_or_else(|| fit_error("心率超出 FIT 支持范围"))?)
+        / count;
     let average = u8::try_from(average).map_err(|_| fit_error("心率超出 FIT 支持范围"))?;
     Ok((fit_heart_rate(average)?, max))
 }

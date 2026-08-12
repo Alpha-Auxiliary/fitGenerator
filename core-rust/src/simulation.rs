@@ -1,8 +1,10 @@
 use crate::{
-    domain::{ActivityModel, ActivityRequest, ActivitySample, LapModel, ALGORITHM_VERSION, SCHEMA_VERSION},
+    domain::{
+        ALGORITHM_VERSION, ActivityModel, ActivityRequest, ActivitySample, LapModel, SCHEMA_VERSION,
+    },
     error::CoreError,
     geo::{build_closed_route, cumulative_distances, expand_laps, to_semicircles},
-    rng::{derive_variant_seed, quantize_distance_cm, quantize_speed_mm_per_sec, SplitMix64},
+    rng::{SplitMix64, derive_variant_seed, quantize_distance_cm, quantize_speed_mm_per_sec},
     validation::ValidatedRequest,
 };
 
@@ -25,9 +27,9 @@ pub fn build_activity_model(request: &ValidatedRequest) -> Result<ActivityModel,
     // Routes whose endpoints are already within the geo helper's five-meter threshold are
     // semantically closed, but `expand_laps` needs an explicit shared endpoint.
     if base_closed.first() != base_closed.last() {
-        let first = *base_closed
-            .first()
-            .ok_or_else(|| CoreError::SimulationFailed("基础轨迹必须闭合且至少包含两个点".to_owned()))?;
+        let first = *base_closed.first().ok_or_else(|| {
+            CoreError::SimulationFailed("基础轨迹必须闭合且至少包含两个点".to_owned())
+        })?;
         base_closed
             .try_reserve(1)
             .map_err(|_| CoreError::ResourceLimit(SAMPLE_ALLOCATION_FAILURE.to_owned()))?;
@@ -41,7 +43,9 @@ pub fn build_activity_model(request: &ValidatedRequest) -> Result<ActivityModel,
         .last()
         .ok_or_else(|| CoreError::SimulationFailed("轨迹总距离必须大于 0".to_owned()))?;
     if !total_distance_m.is_finite() || total_distance_m <= 0.0 {
-        return Err(CoreError::SimulationFailed("轨迹总距离必须大于 0".to_owned()));
+        return Err(CoreError::SimulationFailed(
+            "轨迹总距离必须大于 0".to_owned(),
+        ));
     }
 
     let long_phase = core::f64::consts::TAU * rng.next_unit_f64();
@@ -52,16 +56,22 @@ pub fn build_activity_model(request: &ValidatedRequest) -> Result<ActivityModel,
         .checked_sub(1)
         .ok_or_else(|| CoreError::SimulationFailed(SIMULATION_TIME_FAILURE.to_owned()))?;
     if segment_count == 0 || cumulative.len() != expanded.points.len() {
-        return Err(CoreError::SimulationFailed(SIMULATION_TIME_FAILURE.to_owned()));
+        return Err(CoreError::SimulationFailed(
+            SIMULATION_TIME_FAILURE.to_owned(),
+        ));
     }
 
     let pace_seconds_per_km = request.pace_seconds_per_km();
     if !pace_seconds_per_km.is_finite() || pace_seconds_per_km <= 0.0 {
-        return Err(CoreError::SimulationFailed(SIMULATION_TIME_FAILURE.to_owned()));
+        return Err(CoreError::SimulationFailed(
+            SIMULATION_TIME_FAILURE.to_owned(),
+        ));
     }
     let target_speed_mps = 1_000.0 / pace_seconds_per_km;
     if !target_speed_mps.is_finite() || target_speed_mps <= 0.0 {
-        return Err(CoreError::SimulationFailed(SIMULATION_TIME_FAILURE.to_owned()));
+        return Err(CoreError::SimulationFailed(
+            SIMULATION_TIME_FAILURE.to_owned(),
+        ));
     }
 
     let mut factors = Vec::new();
@@ -89,12 +99,16 @@ pub fn build_activity_model(request: &ValidatedRequest) -> Result<ActivityModel,
             || !denominator.is_finite()
             || denominator <= 0.0
         {
-            return Err(CoreError::SimulationFailed(SIMULATION_TIME_FAILURE.to_owned()));
+            return Err(CoreError::SimulationFailed(
+                SIMULATION_TIME_FAILURE.to_owned(),
+            ));
         }
         let raw_duration = segment_distance / denominator;
         let raw_total = raw_cumulative[index - 1] + raw_duration;
         if !raw_duration.is_finite() || raw_duration < 0.0 || !raw_total.is_finite() {
-            return Err(CoreError::SimulationFailed(SIMULATION_TIME_FAILURE.to_owned()));
+            return Err(CoreError::SimulationFailed(
+                SIMULATION_TIME_FAILURE.to_owned(),
+            ));
         }
         factors.push(factor);
         raw_cumulative.push(raw_total);
@@ -104,18 +118,24 @@ pub fn build_activity_model(request: &ValidatedRequest) -> Result<ActivityModel,
         .last()
         .ok_or_else(|| CoreError::SimulationFailed(SIMULATION_TIME_FAILURE.to_owned()))?;
     if !raw_total.is_finite() || raw_total <= 0.0 {
-        return Err(CoreError::SimulationFailed(SIMULATION_TIME_FAILURE.to_owned()));
+        return Err(CoreError::SimulationFailed(
+            SIMULATION_TIME_FAILURE.to_owned(),
+        ));
     }
     let target_total_ms_raw = total_distance_m * pace_seconds_per_km;
     if !target_total_ms_raw.is_finite()
         || target_total_ms_raw <= 0.0
         || target_total_ms_raw >= u64::MAX as f64
     {
-        return Err(CoreError::SimulationFailed(SIMULATION_TIME_FAILURE.to_owned()));
+        return Err(CoreError::SimulationFailed(
+            SIMULATION_TIME_FAILURE.to_owned(),
+        ));
     }
     let target_total_ms = target_total_ms_raw.round() as u64;
     if target_total_ms == 0 {
-        return Err(CoreError::SimulationFailed(SIMULATION_TIME_FAILURE.to_owned()));
+        return Err(CoreError::SimulationFailed(
+            SIMULATION_TIME_FAILURE.to_owned(),
+        ));
     }
 
     let mut times = Vec::new();
@@ -127,11 +147,15 @@ pub fn build_activity_model(request: &ValidatedRequest) -> Result<ActivityModel,
     for (index, raw_elapsed) in raw_cumulative.iter().copied().enumerate().skip(1) {
         let scaled = (raw_elapsed / raw_total) * target_total_as_f64;
         if !scaled.is_finite() {
-            return Err(CoreError::SimulationFailed(SIMULATION_TIME_FAILURE.to_owned()));
+            return Err(CoreError::SimulationFailed(
+                SIMULATION_TIME_FAILURE.to_owned(),
+            ));
         }
         let rounded = scaled.round().clamp(0.0, target_total_as_f64);
         if !rounded.is_finite() {
-            return Err(CoreError::SimulationFailed(SIMULATION_TIME_FAILURE.to_owned()));
+            return Err(CoreError::SimulationFailed(
+                SIMULATION_TIME_FAILURE.to_owned(),
+            ));
         }
         let time_ms = if index == segment_count {
             target_total_ms
@@ -216,22 +240,24 @@ pub fn build_activity_model(request: &ValidatedRequest) -> Result<ActivityModel,
     laps.try_reserve(expanded.laps.len())
         .map_err(|_| CoreError::ResourceLimit(LAP_ALLOCATION_FAILURE.to_owned()))?;
     for range in &expanded.laps {
-        let start = samples.get(range.start_sample).ok_or_else(|| {
-            CoreError::SimulationFailed(LAP_SUMMARY_FAILURE.to_owned())
-        })?;
-        let end = samples.get(range.end_sample).ok_or_else(|| {
-            CoreError::SimulationFailed(LAP_SUMMARY_FAILURE.to_owned())
-        })?;
+        let start = samples
+            .get(range.start_sample)
+            .ok_or_else(|| CoreError::SimulationFailed(LAP_SUMMARY_FAILURE.to_owned()))?;
+        let end = samples
+            .get(range.end_sample)
+            .ok_or_else(|| CoreError::SimulationFailed(LAP_SUMMARY_FAILURE.to_owned()))?;
         laps.push(LapModel {
             index: range.index,
             start_sample: range.start_sample,
             end_sample: range.end_sample,
-            distance_cm: end.distance_cm.checked_sub(start.distance_cm).ok_or_else(|| {
-                CoreError::SimulationFailed(LAP_SUMMARY_FAILURE.to_owned())
-            })?,
-            duration_ms: end.time_ms.checked_sub(start.time_ms).ok_or_else(|| {
-                CoreError::SimulationFailed(LAP_SUMMARY_FAILURE.to_owned())
-            })?,
+            distance_cm: end
+                .distance_cm
+                .checked_sub(start.distance_cm)
+                .ok_or_else(|| CoreError::SimulationFailed(LAP_SUMMARY_FAILURE.to_owned()))?,
+            duration_ms: end
+                .time_ms
+                .checked_sub(start.time_ms)
+                .ok_or_else(|| CoreError::SimulationFailed(LAP_SUMMARY_FAILURE.to_owned()))?,
         });
     }
 

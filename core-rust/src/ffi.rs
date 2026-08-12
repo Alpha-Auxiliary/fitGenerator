@@ -1,6 +1,6 @@
 use std::{
-    ffi::{c_char, CString},
-    panic::{catch_unwind, AssertUnwindSafe},
+    ffi::{CString, c_char},
+    panic::{AssertUnwindSafe, catch_unwind},
     ptr,
 };
 
@@ -53,11 +53,7 @@ fn safe_c_string(message: &str) -> CString {
     }
 }
 
-fn execute(
-    request: *const u8,
-    length: usize,
-    operation: CoreOperation,
-) -> *mut FgResult {
+fn execute(request: *const u8, length: usize, operation: CoreOperation) -> *mut FgResult {
     let outcome = catch_unwind(AssertUnwindSafe(|| {
         let operation_result = if length == 0 {
             operation(&[])

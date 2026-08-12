@@ -3,13 +3,14 @@ use fit_generator_core::rng::{
     quantize_time_ms,
 };
 use fit_generator_core::{
+    build_activity_model,
     domain::GeoPoint,
     error::CoreError,
     geo::{
         LapRange, build_closed_route, cumulative_distances, expand_laps, haversine_meters,
         offset_point_meters, to_semicircles,
     },
-    build_activity_model, parse_and_validate, preview_json,
+    parse_and_validate, preview_json,
 };
 use proptest::prelude::*;
 
@@ -26,15 +27,38 @@ fn fixture(name: &str) -> &'static [u8] {
     }
 }
 
-fn assert_model_invariants(model: &fit_generator_core::domain::ActivityModel, hr_rest: u8, hr_max: u8) {
+fn assert_model_invariants(
+    model: &fit_generator_core::domain::ActivityModel,
+    hr_rest: u8,
+    hr_max: u8,
+) {
     assert!(!model.samples.is_empty());
-    assert!(model.samples.windows(2).all(|pair| pair[0].time_ms <= pair[1].time_ms));
-    assert!(model.samples.windows(2).all(|pair| pair[0].distance_cm <= pair[1].distance_cm));
-    assert!(model.samples.iter().all(|sample| {
-        (hr_rest..=hr_max).contains(&sample.heart_rate_bpm)
-    }));
-    assert_eq!(model.total_distance_cm, model.samples.last().unwrap().distance_cm);
-    assert_eq!(model.total_duration_ms, model.samples.last().unwrap().time_ms);
+    assert!(
+        model
+            .samples
+            .windows(2)
+            .all(|pair| pair[0].time_ms <= pair[1].time_ms)
+    );
+    assert!(
+        model
+            .samples
+            .windows(2)
+            .all(|pair| pair[0].distance_cm <= pair[1].distance_cm)
+    );
+    assert!(
+        model
+            .samples
+            .iter()
+            .all(|sample| { (hr_rest..=hr_max).contains(&sample.heart_rate_bpm) })
+    );
+    assert_eq!(
+        model.total_distance_cm,
+        model.samples.last().unwrap().distance_cm
+    );
+    assert_eq!(
+        model.total_duration_ms,
+        model.samples.last().unwrap().time_ms
+    );
 }
 
 #[test]
@@ -63,10 +87,19 @@ fn activity_model_matches_canonical_public_contract() {
     assert!(model.samples.len() >= 5);
     assert_eq!(model.samples[0].time_ms, 0);
     assert_eq!(model.samples[0].distance_cm, 0);
-    assert_eq!(model.total_distance_cm, model.samples.last().unwrap().distance_cm);
-    assert_eq!(model.total_duration_ms, model.samples.last().unwrap().time_ms);
+    assert_eq!(
+        model.total_distance_cm,
+        model.samples.last().unwrap().distance_cm
+    );
+    assert_eq!(
+        model.total_duration_ms,
+        model.samples.last().unwrap().time_ms
+    );
     assert_eq!(model.laps.first().unwrap().start_sample, 0);
-    assert_eq!(model.laps.last().unwrap().end_sample, model.samples.len() - 1);
+    assert_eq!(
+        model.laps.last().unwrap().end_sample,
+        model.samples.len() - 1
+    );
     assert_eq!(
         model.laps.iter().map(|lap| lap.distance_cm).sum::<u64>(),
         model.total_distance_cm
@@ -81,7 +114,12 @@ fn activity_model_matches_canonical_public_contract() {
 
 #[test]
 fn all_valid_fixtures_build_and_invalid_heart_rate_has_contract_error() {
-    for name in ["closed_single_lap", "open_two_laps", "short_legal", "fast_low_hr"] {
+    for name in [
+        "closed_single_lap",
+        "open_two_laps",
+        "short_legal",
+        "fast_low_hr",
+    ] {
         let request = parse_and_validate(fixture(name)).expect("valid fixture must parse");
         build_activity_model(&request).expect("valid fixture must simulate");
     }
@@ -110,11 +148,19 @@ fn malformed_or_unknown_json_is_rejected_with_the_public_parse_error() {
 fn model_duration_lap_ranges_and_integer_samples_follow_contract() {
     let request = parse_and_validate(OPEN_TWO_LAPS).expect("fixture must validate");
     let model = build_activity_model(&request).expect("fixture must simulate");
-    let total_distance_m = cumulative_distances(&expand_laps(
-        &build_closed_route(request.points()),
-        request.lap_count(),
-        &mut SplitMix64::new(derive_variant_seed(request.seed(), request.variant_index())),
-    ).expect("fixture must expand").points).expect("fixture must measure").last().copied().unwrap();
+    let total_distance_m = cumulative_distances(
+        &expand_laps(
+            &build_closed_route(request.points()),
+            request.lap_count(),
+            &mut SplitMix64::new(derive_variant_seed(request.seed(), request.variant_index())),
+        )
+        .expect("fixture must expand")
+        .points,
+    )
+    .expect("fixture must measure")
+    .last()
+    .copied()
+    .unwrap();
 
     assert_eq!(
         model.total_duration_ms,
@@ -259,9 +305,23 @@ fn route_closure_uses_strict_five_meter_threshold() {
         lng: (5.001 / EARTH_RADIUS_METERS).to_degrees(),
     };
 
-    assert!(haversine_meters(first.lat, first.lng, under_threshold.lat, under_threshold.lng) < 5.0);
+    assert!(
+        haversine_meters(
+            first.lat,
+            first.lng,
+            under_threshold.lat,
+            under_threshold.lng
+        ) < 5.0
+    );
     assert_eq!(build_closed_route(&[first, under_threshold]).len(), 2);
-    assert!(haversine_meters(first.lat, first.lng, above_threshold.lat, above_threshold.lng) > 5.0);
+    assert!(
+        haversine_meters(
+            first.lat,
+            first.lng,
+            above_threshold.lat,
+            above_threshold.lng
+        ) > 5.0
+    );
     assert_eq!(build_closed_route(&[first, above_threshold]).len(), 3);
 }
 
@@ -270,7 +330,10 @@ fn haversine_matches_beijing_reference_distance() {
     let points = beijing_points();
     let distance = haversine_meters(points[0].lat, points[0].lng, points[1].lat, points[1].lng);
 
-    assert!((distance - 140.1).abs() < 1.0, "actual distance: {distance}");
+    assert!(
+        (distance - 140.1).abs() < 1.0,
+        "actual distance: {distance}"
+    );
 }
 
 #[test]
@@ -302,7 +365,10 @@ fn cumulative_distances_start_at_zero_and_match_segment_sum() {
     assert_eq!(distances[0], 0.0);
     assert!(distances.iter().all(|distance| distance.is_finite()));
     assert!(distances.windows(2).all(|pair| pair[0] <= pair[1]));
-    assert_eq!(*distances.last().expect("closed route has samples"), expected);
+    assert_eq!(
+        *distances.last().expect("closed route has samples"),
+        expected
+    );
 }
 
 #[test]
@@ -330,7 +396,11 @@ fn two_laps_have_overlapping_ranges_and_deterministic_offset() {
     let mut expected_rng = SplitMix64::new(42);
     let radius = 5.0 + 5.0 * expected_rng.next_unit_f64();
     let angle = core::f64::consts::TAU * expected_rng.next_unit_f64();
-    let expected_first_offset = offset_point_meters(&closed[0], radius * libm::cos(angle), radius * libm::sin(angle));
+    let expected_first_offset = offset_point_meters(
+        &closed[0],
+        radius * libm::cos(angle),
+        radius * libm::sin(angle),
+    );
 
     assert_eq!(expanded.points.len(), 6);
     assert_eq!(
@@ -361,9 +431,11 @@ fn two_laps_have_overlapping_ranges_and_deterministic_offset() {
 
 #[test]
 fn cumulative_distances_handle_empty_and_nonfinite_coordinates() {
-    assert!(cumulative_distances(&[])
-        .expect("empty route has no distances")
-        .is_empty());
+    assert!(
+        cumulative_distances(&[])
+            .expect("empty route has no distances")
+            .is_empty()
+    );
 
     for point in [
         GeoPoint {
@@ -499,12 +571,6 @@ fn three_laps_use_two_rng_values_per_added_lap_and_share_boundaries() {
     );
     assert_eq!(expanded.points[base_length], expected_lap_one_first);
     assert_eq!(expanded.points[base_length * 2], expected_lap_two_first);
-    assert_eq!(
-        expanded.laps[0].end_sample,
-        expanded.laps[1].start_sample
-    );
-    assert_eq!(
-        expanded.laps[1].end_sample,
-        expanded.laps[2].start_sample
-    );
+    assert_eq!(expanded.laps[0].end_sample, expanded.laps[1].start_sample);
+    assert_eq!(expanded.laps[1].end_sample, expanded.laps[2].start_sample);
 }

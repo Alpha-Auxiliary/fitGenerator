@@ -2,7 +2,7 @@
 
 use std::{
     cell::RefCell,
-    panic::{catch_unwind, AssertUnwindSafe},
+    panic::{AssertUnwindSafe, catch_unwind},
 };
 
 use serde::Serialize;
@@ -14,9 +14,9 @@ use std::ptr;
 
 #[cfg(target_os = "android")]
 use jni::{
+    JNIEnv,
     objects::{JByteArray, JObject, JString},
     sys::{jbyteArray, jint, jstring},
-    JNIEnv,
 };
 
 #[cfg(target_os = "android")]
@@ -65,11 +65,9 @@ fn replace_last_error(value: String) {
 }
 
 fn current_last_error() -> String {
-    LAST_ERROR.with(|last_error| {
-        match last_error.try_borrow() {
-            Ok(current) => current.as_str().to_owned(),
-            Err(_) => INTERNAL_ERROR_JSON.to_owned(),
-        }
+    LAST_ERROR.with(|last_error| match last_error.try_borrow() {
+        Ok(current) => current.as_str().to_owned(),
+        Err(_) => INTERNAL_ERROR_JSON.to_owned(),
     })
 }
 
@@ -204,16 +202,14 @@ mod tests {
     use serde_json::Value;
 
     use super::{
-        catch_internal, current_last_error, update_last_error, BridgeFailure,
-        INTERNAL_ERROR_JSON,
+        BridgeFailure, INTERNAL_ERROR_JSON, catch_internal, current_last_error, update_last_error,
     };
     use crate::error::CoreError;
 
     #[test]
     fn core_error_is_stored_as_exact_structured_json() {
-        let outcome: Result<(), BridgeFailure> = Err(BridgeFailure::Core(
-            CoreError::UnsupportedSchema(7),
-        ));
+        let outcome: Result<(), BridgeFailure> =
+            Err(BridgeFailure::Core(CoreError::UnsupportedSchema(7)));
         update_last_error(&outcome);
 
         let json = current_last_error();
@@ -225,9 +221,9 @@ mod tests {
 
     #[test]
     fn successful_outcome_clears_the_current_threads_error() {
-        let failure: Result<(), BridgeFailure> = Err(BridgeFailure::Core(
-            CoreError::InvalidInput("无效请求".to_owned()),
-        ));
+        let failure: Result<(), BridgeFailure> = Err(BridgeFailure::Core(CoreError::InvalidInput(
+            "无效请求".to_owned(),
+        )));
         update_last_error(&failure);
         assert!(!current_last_error().is_empty());
 

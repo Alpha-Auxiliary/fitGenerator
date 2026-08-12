@@ -1,7 +1,4 @@
-use time::{
-    format_description::well_known::Rfc3339,
-    OffsetDateTime, UtcOffset,
-};
+use time::{OffsetDateTime, UtcOffset, format_description::well_known::Rfc3339};
 
 use crate::{
     domain::{ActivityRequest, GeoPoint, RouteMode, SCHEMA_VERSION},
@@ -38,7 +35,9 @@ impl TryFrom<ActivityRequest> for ValidatedRequest {
         validate_points(&request.points)?;
 
         if !(MIN_LAPS..=MAX_LAPS).contains(&request.lap_count) {
-            return Err(CoreError::InvalidInput("圈数必须在 1 到 100 之间".to_owned()));
+            return Err(CoreError::InvalidInput(
+                "圈数必须在 1 到 100 之间".to_owned(),
+            ));
         }
         validate_expanded_sample_limit(request.points.len(), request.lap_count)?;
 
@@ -53,7 +52,9 @@ impl TryFrom<ActivityRequest> for ValidatedRequest {
             ));
         }
         if request.hr_max <= request.hr_rest {
-            return Err(CoreError::InvalidInput("最大心率必须高于静息心率".to_owned()));
+            return Err(CoreError::InvalidInput(
+                "最大心率必须高于静息心率".to_owned(),
+            ));
         }
 
         if !request.pace_seconds_per_km.is_finite()
@@ -149,10 +150,14 @@ fn validate_points(points: &[GeoPoint]) -> Result<(), CoreError> {
             return Err(CoreError::InvalidInput("轨迹坐标必须是有限数值".to_owned()));
         }
         if !(-90.0..=90.0).contains(&point.lat) {
-            return Err(CoreError::InvalidInput("纬度必须在 -90 到 90 之间".to_owned()));
+            return Err(CoreError::InvalidInput(
+                "纬度必须在 -90 到 90 之间".to_owned(),
+            ));
         }
         if !(-180.0..=180.0).contains(&point.lng) {
-            return Err(CoreError::InvalidInput("经度必须在 -180 到 180 之间".to_owned()));
+            return Err(CoreError::InvalidInput(
+                "经度必须在 -180 到 180 之间".to_owned(),
+            ));
         }
     }
 

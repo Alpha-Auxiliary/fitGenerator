@@ -1,8 +1,8 @@
+#[cfg(feature = "android-jni")]
+pub mod android_jni;
 pub mod domain;
 pub mod error;
 pub mod ffi;
-#[cfg(feature = "android-jni")]
-pub mod android_jni;
 pub mod geo;
 pub mod rng;
 pub mod simulation;

@@ -3,8 +3,8 @@ use std::{ffi::CStr, ptr, slice};
 use fit_generator_core::{
     error::ErrorCode,
     ffi::{
-        fg_core_api_version, fg_generate_fit, fg_preview, fg_result_code, fg_result_data,
-        fg_result_error, fg_result_free, fg_result_length, FgResult,
+        FgResult, fg_core_api_version, fg_generate_fit, fg_preview, fg_result_code, fg_result_data,
+        fg_result_error, fg_result_free, fg_result_length,
     },
 };
 use proptest::prelude::*;
@@ -43,7 +43,9 @@ unsafe fn copy_error(result: *const FgResult) -> String {
     assert!(!error.is_null());
     // SAFETY: `fg_result_error` returns a NUL-terminated string which remains
     // valid while `result` is live.
-    unsafe { CStr::from_ptr(error) }.to_string_lossy().into_owned()
+    unsafe { CStr::from_ptr(error) }
+        .to_string_lossy()
+        .into_owned()
 }
 
 #[test]
@@ -169,7 +171,10 @@ fn checked_in_header_exposes_only_the_opaque_contract() {
         "void fg_result_free(FgResult *result);",
         "uint32_t fg_core_api_version(void);",
     ] {
-        assert!(header.contains(declaration), "missing declaration: {declaration}");
+        assert!(
+            header.contains(declaration),
+            "missing declaration: {declaration}"
+        );
     }
     assert_eq!(header.matches("fg_").count(), 8);
 }
