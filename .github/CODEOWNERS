@@ -1,0 +1,16 @@
+/.github/ @Alpha-Auxiliary
+/.gitignore @Alpha-Auxiliary
+/android/app/build.gradle @Alpha-Auxiliary
+/android/gradle/wrapper/ @Alpha-Auxiliary
+/core-rust/Cargo.lock @Alpha-Auxiliary
+/core-rust/Cargo.toml @Alpha-Auxiliary
+/deny.toml @Alpha-Auxiliary
+/native-windows/FitGenerator.Native/FitGenerator.Native.csproj @Alpha-Auxiliary
+/package-lock.json @Alpha-Auxiliary
+/package.json @Alpha-Auxiliary
+/CODE_SIGNING.md @Alpha-Auxiliary
+/PRIVACY.md @Alpha-Auxiliary
+/README.md @Alpha-Auxiliary
+/SECURITY.md @Alpha-Auxiliary
+/THIRD-PARTY-NOTICES.txt @Alpha-Auxiliary
+/scripts/ @Alpha-Auxiliary

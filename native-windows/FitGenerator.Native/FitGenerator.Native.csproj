@@ -1,0 +1,50 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RustCoreLibraryRelativePath>runtimes\win-x64\native\fit_generator_core.dll</RustCoreLibraryRelativePath>
+    <RustCoreLibraryPath>$(MSBuildProjectDirectory)\$(RustCoreLibraryRelativePath)</RustCoreLibraryPath>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release' and '$(RuntimeIdentifier)' == 'win-x64'">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <PublishTrimmed>false</PublishTrimmed>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <UseAppHost>true</UseAppHost>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mapsui.WindowsForms" Version="5.1.0" />
+    <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FitGenerator.Native.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="$(RustCoreLibraryRelativePath)"
+             Condition="Exists('$(RustCoreLibraryPath)')"
+             Link="fit_generator_core.dll"
+             TargetPath="fit_generator_core.dll"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest"
+             ExcludeFromSingleFile="false" />
+  </ItemGroup>
+
+  <Target Name="ValidateRustCoreLibraryForPublish"
+          BeforeTargets="ComputeFilesToPublish"
+          Condition="'$(Configuration)' == 'Release' and '$(RuntimeIdentifier)' == 'win-x64' and '$(PublishSingleFile)' == 'true'">
+    <Error Condition="!Exists('$(RustCoreLibraryPath)')"
+           Text="缺少 Windows Rust 核心：$(RustCoreLibraryRelativePath)。请先运行固定的 Windows Rust 构建脚本。" />
+  </Target>
+
+</Project>

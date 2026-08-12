@@ -1,0 +1,93 @@
+fitGenerator third-party notices
+================================
+
+This is a human-maintained inventory of direct runtime dependencies declared by
+the native Windows, Android, and Rust-core projects. It is not a substitute for
+the license texts shipped by upstream projects or for the release SPDX SBOM.
+
+Repository status on 2026-08-11
+--------------------------------
+
+The repository does not currently contain core-rust/Cargo.lock, a generated
+fit-generator-sbom.spdx.json, or built release artifacts. Consequently, exact
+resolved versions, transitive dependencies, platform runtime files, and their
+license texts have not yet been verified. Release CI must generate and review
+the lock/resolution data and SPDX SBOM before publishing. The release verifier
+rejects a bundle that has no nonempty SPDX SBOM.
+
+Rust core direct runtime dependencies
+-------------------------------------
+
+The version values below are requirements from core-rust/Cargo.toml, not locked
+versions. Upstream crate metadata declares these license expressions; release
+CI must confirm them for the exact resolved packages.
+
+  Component     Requirement   Declared license       Upstream
+  libm          0.2           MIT OR Apache-2.0       https://github.com/rust-lang/libm
+  serde         1             MIT OR Apache-2.0       https://github.com/serde-rs/serde
+  serde_json    1             MIT OR Apache-2.0       https://github.com/serde-rs/json
+  thiserror     2             MIT OR Apache-2.0       https://github.com/dtolnay/thiserror
+  time          0.3           MIT OR Apache-2.0       https://github.com/time-rs/time
+  jni           0.21          MIT OR Apache-2.0       https://github.com/jni-rs/jni-rs
+
+Compiler-selected Rust standard-library/runtime code may also be embedded in
+the native libraries. The Rust project is distributed under MIT OR Apache-2.0,
+with additional third-party notices; the exact toolchain bundle must be captured
+by release provenance and the SPDX SBOM:
+  https://github.com/rust-lang/rust
+
+The jni dependency is optional in the manifest and is enabled for the Android
+JNI build. The fit-generator-core crate itself declares MIT in Cargo.toml.
+Development-only dependencies are not included in this runtime list.
+
+Windows direct runtime dependencies
+-----------------------------------
+
+  Component                                      Declared version   License / source
+  Mapsui.WindowsForms                            5.1.0              MIT
+    https://github.com/Mapsui/Mapsui
+  System.Security.Cryptography.ProtectedData     8.0.0              MIT package distribution
+    https://www.nuget.org/packages/System.Security.Cryptography.ProtectedData/8.0.0
+  .NET / Windows Forms self-contained runtime    8.0 family         see .NET license information
+    https://github.com/dotnet/core/blob/main/license-information.md
+
+.NET source uses MIT and library packages use MIT, while Microsoft .NET product
+distributions on Windows use the .NET Library License. A self-contained Windows
+application embeds runtime components, so the exact bundle's Microsoft license
+and third-party notice files, plus the generated SBOM, are authoritative.
+Mapsui also has transitive runtime dependencies that the generated SBOM must
+enumerate.
+
+Android direct runtime dependencies
+-----------------------------------
+
+  Component / group                              Declared version   License / source
+  Kotlin runtime and compiler-injected stdlib    2.2.0 family      Apache-2.0
+    https://github.com/JetBrains/kotlin
+  AndroidX Activity Compose                      1.12.4            Apache-2.0
+  AndroidX Lifecycle runtime/viewmodel Compose   2.9.2             Apache-2.0
+  AndroidX DataStore Preferences                 1.1.7             Apache-2.0
+  AndroidX Compose UI / Material 3               BOM 2026.06.00    Apache-2.0
+    https://android.googlesource.com/platform/frameworks/support/+/androidx-main/LICENSE.txt
+  kotlinx.coroutines Android                     1.10.2            Apache-2.0
+    https://github.com/Kotlin/kotlinx.coroutines
+  kotlinx.serialization JSON                     1.9.0             Apache-2.0
+    https://github.com/Kotlin/kotlinx.serialization
+  MapLibre Native Android SDK                    13.2.0            BSD-2-Clause
+    https://github.com/maplibre/maplibre-native
+
+The Compose BOM resolves individual Compose module versions; those versions and
+all Android transitive dependencies remain subject to Gradle resolution and
+SBOM verification. Unit-test, instrumentation-test, and debug-only dependencies
+are intentionally not represented as shipped runtime dependencies here.
+
+Explicit exclusion
+------------------
+
+Garmin.FIT.Sdk is not a dependency of the native Windows application, Android
+application, or Rust core and must not be included in native release artifacts.
+FIT encoding for these artifacts is implemented by the repository's Rust core.
+
+No license text is reproduced here. Distributors must retain the exact upstream
+licenses, copyright notices, and generated SBOM that apply to the resolved
+release bundle.

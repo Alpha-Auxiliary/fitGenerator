@@ -4,8 +4,11 @@ const CONFIG = {
     INITIAL_LNG: 116.4074,
     INITIAL_ZOOM: 13,
     MAX_ZOOM: 18,
-    DEFAULT_PROVIDER: "google",
+    DEFAULT_PROVIDER: "osm",
     PROVIDERS: {
+      osm: {
+        label: "OpenStreetMap"
+      },
       baidu: {
         label: "百度地图",
         ak: ""
@@ -107,6 +110,16 @@ function loadScriptOnce(id, src, globalCheck) {
   });
 }
 
+function loadStyleOnce(id, href) {
+  if (document.getElementById(id)) return;
+
+  const link = document.createElement("link");
+  link.id = id;
+  link.rel = "stylesheet";
+  link.href = href;
+  document.head.appendChild(link);
+}
+
 function loadJsonpScript(id, src, callbackName, globalCheck) {
   if (globalCheck && globalCheck()) return Promise.resolve();
 
@@ -181,6 +194,120 @@ function resetMapState() {
   freshMapEl.id = "map";
   mapEl.replaceWith(freshMapEl);
   updateDistanceInfo();
+}
+
+function makeOsmAdapter() {
+  return {
+    async load() {
+      loadStyleOnce(
+        "leaflet-css",
+        "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"
+      );
+      await loadScriptOnce(
+        "leaflet-sdk",
+        "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js",
+        () => window.L
+      );
+    },
+    init(containerId) {
+      map = L.map(containerId, {
+        center: [CONFIG.MAP.INITIAL_LAT, CONFIG.MAP.INITIAL_LNG],
+        zoom: CONFIG.MAP.INITIAL_ZOOM,
+        zoomControl: false
+      });
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: CONFIG.MAP.MAX_ZOOM,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+      L.control.zoom({ position: "topright" }).addTo(map);
+      L.control.scale().addTo(map);
+    },
+    getContainer: () => map.getContainer(),
+    point: (lng, lat) => L.latLng(lat, lng),
+    eventLngLat(e) {
+      return { lng: e.latlng.lng, lat: e.latlng.lat };
+    },
+    onMapEvent: (name, handler) => map.on(name, handler),
+    createPolyline(points) {
+      return L.polyline(points, {
+        color: CONFIG.COLORS.TRAJECTORY,
+        weight: 4,
+        opacity: 0.9
+      }).addTo(map);
+    },
+    setPolylinePath: (polyline, points) => polyline.setLatLngs(points),
+    getPolylinePath: (polyline) => polyline.getLatLngs().map(p => ({ lng: p.lng, lat: p.lat })),
+    onPolylineClick: (polyline, handler) => polyline.on("click", (e) => {
+      L.DomEvent.stopPropagation(e);
+      handler(e);
+    }),
+    enablePolylineEdit(polyline, onUpdate) {
+      const markers = polyline.getLatLngs().map((point, index) => {
+        const marker = L.marker(point, {
+          draggable: true,
+          icon: L.divIcon({
+            className: "leaflet-edit-handle",
+            iconSize: [12, 12]
+          })
+        }).addTo(map);
+
+        marker.on("drag", () => {
+          const points = polyline.getLatLngs();
+          points[index] = marker.getLatLng();
+          polyline.setLatLngs(points);
+          onUpdate();
+        });
+        return marker;
+      });
+
+      return { polyline, markers };
+    },
+    closeEdit(editor) {
+      if (!editor) return;
+      editor.markers.forEach(marker => map.removeLayer(marker));
+    },
+    removeOverlay: (overlay) => overlay && map.removeLayer(overlay),
+    addMarker(point, title) {
+      return L.marker(point, { title }).addTo(map);
+    },
+    centerAndZoom(point, zoom) {
+      map.setView(point, zoom);
+    },
+    setCursor: (cursor) => {
+      map.getContainer().style.cursor = cursor || "";
+    },
+    enableDragging: () => map.dragging.enable(),
+    disableDragging: () => map.dragging.disable(),
+    createPreviewMarker(point) {
+      return L.circleMarker(point, {
+        radius: CONFIG.PREVIEW.MARKER_RADIUS,
+        fillColor: CONFIG.PREVIEW.MARKER_COLOR,
+        fillOpacity: 1,
+        color: CONFIG.PREVIEW.MARKER_COLOR,
+        weight: 2
+      }).addTo(map);
+    },
+    movePreviewMarker: (marker, point) => marker.setLatLng(point),
+    async search(query, onResults, onError) {
+      try {
+        const params = new URLSearchParams({
+          format: "jsonv2",
+          q: query,
+          limit: "5"
+        });
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`);
+        if (!res.ok) throw new Error("OpenStreetMap search failed");
+        const data = await res.json();
+        onResults(data.map(item => ({
+          name: item.display_name?.split(",")[0] || item.name || query,
+          address: item.display_name || "",
+          point: L.latLng(Number(item.lat), Number(item.lon))
+        })));
+      } catch (e) {
+        onError(e);
+      }
+    }
+  };
 }
 
 function makeBaiduAdapter() {
@@ -469,6 +596,7 @@ function makeGoogleAdapter() {
 }
 
 function createMapAdapter(providerId) {
+  if (providerId === "osm") return makeOsmAdapter();
   if (providerId === "amap") return makeAmapAdapter();
   if (providerId === "google") return makeGoogleAdapter();
   return makeBaiduAdapter();

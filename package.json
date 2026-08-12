@@ -5,8 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js",
-    "build": "node -e \"const fs = require('fs'); if (!fs.existsSync('dist')) fs.mkdirSync('dist');\" && npx ncc build server.js -o . --minify && node -e \"const fs = require('fs'); if (fs.existsSync('index.js')) fs.renameSync('index.js', 'server_bundled.cjs')\" && npx pkg server_bundled.cjs --output dist/fit-tool.exe --targets node18-win-x64 --config package.json"
+    "dev": "nodemon server.js",
+    "build": "node -e \"const fs = require('fs'); if (!fs.existsSync('dist')) fs.mkdirSync('dist');\" && npx ncc build server.js -o . --minify && node -e \"const fs = require('fs'); if (fs.existsSync('index.js')) fs.renameSync('index.js', 'server_bundled.cjs')\" && npx pkg server_bundled.cjs --output dist/fit-tool.exe --targets node18-win-x64 --config package.json",
+    "build:apk": "./android/gradlew -p android assembleRelease",
+    "build:native": "dotnet publish native-windows/FitGenerator.Native/FitGenerator.Native.csproj -c Release -r win-x64 -o dist/native-windows"
   },
   "bin": "server.js",
   "pkg": {
@@ -25,6 +27,7 @@
   },
   "devDependencies": {
     "@vercel/ncc": "^0.38.4",
+    "nodemon": "^3.1.14",
     "open": "^11.0.0",
     "pkg": "^5.8.1"
   }
