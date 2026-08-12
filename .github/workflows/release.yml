@@ -621,6 +621,7 @@ jobs:
             --ks-key-alias $env:ANDROID_KEY_ALIAS `
             --ks-pass "env:ANDROID_KEYSTORE_PASSWORD" `
             --key-pass "env:ANDROID_KEY_PASSWORD" `
+            --v4-signing-enabled false `
             --out $outputPath `
             "release-input/fit-generator-android-UNSIGNED.apk"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -695,7 +696,8 @@ jobs:
             -not (Test-Path -LiteralPath $androidPath -PathType Leaf) -or
             -not (Test-Path -LiteralPath $windowsPath -PathType Leaf)
           ) {
-            throw "Downloaded artifacts do not match the fixed Android/Windows layout."
+            $itemNames = @($topLevelItems | ForEach-Object { $_.Name }) -join ", "
+            throw "Downloaded artifacts do not match the fixed Android/Windows layout. Found: $itemNames"
           }
           $expectedWindowsHash = if ($env:WINDOWS_SIGNED -ceq "true") {
             $env:WINDOWS_SIGNED_SHA256
