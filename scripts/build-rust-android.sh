@@ -201,10 +201,9 @@ esac
 staging_output="$transaction_root/output"
 mkdir "$staging_output" || fail "unable to prepare the Android native staging directory"
 
-cd "$repo_root"
+cd "$core_dir"
 
 cargo ndk \
-    --manifest-path core-rust/Cargo.toml \
     --target arm64-v8a \
     --target x86_64 \
     --platform 23 \

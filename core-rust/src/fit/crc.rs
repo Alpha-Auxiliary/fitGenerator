@@ -1,14 +1,3 @@
-#[cfg(test)]
-mod tests {
-    use super::fit_crc;
-
-    #[test]
-    fn calculates_the_fit_header_crc_vector() {
-        let bytes = [0x0e, 0x20, 0x82, 0x08, 0, 0, 0, 0, b'.', b'F', b'I', b'T'];
-
-        assert_eq!(fit_crc(&bytes), 0x675d);
-    }
-}
 /// Computes the FIT CRC-16 used for file headers and payloads.
 pub fn fit_crc(bytes: &[u8]) -> u16 {
     const TABLE: [u16; 16] = [
@@ -26,4 +15,16 @@ pub fn fit_crc(bytes: &[u8]) -> u16 {
     }
 
     crc
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fit_crc;
+
+    #[test]
+    fn calculates_the_fit_header_crc_vector() {
+        let bytes = [0x0e, 0x20, 0x82, 0x08, 0, 0, 0, 0, b'.', b'F', b'I', b'T'];
+
+        assert_eq!(fit_crc(&bytes), 0x675d);
+    }
 }

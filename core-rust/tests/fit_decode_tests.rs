@@ -170,8 +170,8 @@ fn decoded_messages_have_canonical_data_order_counts_and_fields() {
 
     let expected = [MesgNum::FileId, MesgNum::DeviceInfo, MesgNum::Event]
         .into_iter()
-        .chain(std::iter::repeat(MesgNum::Record).take(model.samples.len()))
-        .chain(std::iter::repeat(MesgNum::Lap).take(model.laps.len()))
+        .chain(std::iter::repeat_n(MesgNum::Record, model.samples.len()))
+        .chain(std::iter::repeat_n(MesgNum::Lap, model.laps.len()))
         .chain([MesgNum::Session, MesgNum::Event, MesgNum::Activity])
         .collect::<Vec<_>>();
     assert_eq!(kinds, expected);
